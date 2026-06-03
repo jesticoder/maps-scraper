@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Dashboard – Hannover Handwerker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #171717;
+    --border: #2a2a2a;
+    --border2: #333;
+    --text: #e8e8e8;
+    --muted: #888;
+    --hot: #ff4d2e;
+    --warm: #f5a623;
+    --cold: #4a9eff;
+    --green: #22c55e;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+
+  header span {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat {
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+  }
+  .stat:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .hot-num { color: var(--hot); }
+  .warm-num { color: var(--warm); }
+  .cold-num { color: var(--cold); }
+  .green-num { color: var(--green); }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .controls input, .controls select {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 7px 12px;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  .controls input:focus, .controls select:focus {
+    border-color: #555;
+  }
+
+  .controls input[type="text"] { width: 220px; }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 7px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { border-color: #555; color: var(--text); }
+  .btn.active { border-color: var(--hot); color: var(--hot); }
+  .btn.active-green { border-color: var(--green); color: var(--green); }
+  .btn.active-purple { border-color: #c084fc; color: #c084fc; }
+
+  .btn-export {
+    margin-left: auto;
+    background: var(--surface);
+    color: var(--green);
+    border-color: #2a4a2a;
+  }
+  .btn-export:hover { background: #1a2a1a; }
+
+  /* ── DUPE CONTROLS GROUP ── */
+  .dupe-group {
+    display: flex;
+    gap: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border2);
+  }
+  .dupe-group .btn {
+    border: none;
+    border-radius: 0;
+    border-right: 1px solid var(--border2);
+  }
+  .dupe-group .btn:last-child { border-right: none; }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    padding: 10px 16px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  thead th:hover { color: var(--text); }
+  thead th.no-sort { cursor: default; }
+  thead th.no-sort:hover { color: var(--muted); }
+
+  thead th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  thead th.sort-active .sort-arrow { opacity: 1; color: var(--hot); }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+    cursor: pointer;
+  }
+
+  tbody tr:hover { background: var(--surface); }
+
+  /* ── ANGERUFEN STATE ── */
+  tbody tr.angerufen {
+    opacity: 0.45;
+  }
+  tbody tr.angerufen td .firma-name {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  tbody tr.angerufen .score-pill {
+    opacity: 0.5;
+  }
+
+  td {
+    padding: 10px 16px;
+    font-size: 13px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  /* ── CHECKBOX CELL ── */
+  td.check-cell {
+    padding: 10px 8px 10px 16px;
+    width: 36px;
+  }
+
+  .call-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    display: block;
+  }
+
+  .call-checkbox:hover {
+    border-color: var(--green);
+    background: #0a1a0a;
+  }
+
+  .call-checkbox:checked {
+    background: #1a3a1a;
+    border-color: var(--green);
+  }
+
+  .call-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .score-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  .score-hot { background: #2a0f0a; color: var(--hot); border: 1px solid #5a1a10; }
+  .score-warm { background: #2a1e08; color: var(--warm); border: 1px solid #5a3a10; }
+  .score-cold { background: #0a1a2a; color: var(--cold); border: 1px solid #1a3a5a; }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 2px 6px;
+    border-radius: 2px;
+    border: 1px solid;
+  }
+
+  .badge-no-site { background: #2a0f0a; color: #ff6b4e; border-color: #5a1a10; }
+  .badge-old { background: #2a1e08; color: #f5c842; border-color: #5a3a10; }
+  .badge-ok { background: #0a1a0a; color: #4ade80; border-color: #1a4a1a; }
+  .badge-broken { background: #2a0a2a; color: #c084fc; border-color: #4a1a4a; }
+  .badge-dupe { background: #2a1a2a; color: #c084fc; border-color: #6a2a8a; }
+  .badge-angerufen { background: #0a1a0a; color: var(--green); border-color: #2a4a2a; font-size: 9px; }
+
+  .firma-name { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .tel { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .branche { font-size: 11px; color: var(--muted); }
+
+  .dupe-row td:first-child { border-left: 2px solid #6a2a8a; }
+
+  .detail-panel {
+    display: none;
+    position: fixed;
+    right: 0; top: 0; bottom: 0;
+    width: 360px;
+    background: var(--surface);
+    border-left: 1px solid var(--border2);
+    z-index: 100;
+    overflow-y: auto;
+    padding: 20px;
+  }
+
+  .detail-panel.open { display: block; }
+
+  .detail-close {
+    position: absolute;
+    top: 14px; right: 14px;
+    background: none;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    width: 28px; height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .detail-close:hover { color: var(--text); border-color: #555; }
+
+  .detail-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    padding-right: 36px;
+    line-height: 1.4;
+  }
+
+  .detail-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-section:last-child { border-bottom: none; }
+
+  .detail-section h3 {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 7px;
+    font-size: 13px;
+  }
+
+  .detail-key { color: var(--muted); flex-shrink: 0; }
+  .detail-val { text-align: right; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+  .score-bar-wrap { margin: 8px 0 4px; }
+  .score-bar-bg { background: var(--border); border-radius: 2px; height: 6px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+
+  .reason-list { list-style: none; }
+  .reason-list li {
+    font-size: 12px;
+    color: var(--text);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+  .reason-list li:last-child { border-bottom: none; }
+
+  .action-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .action-btn {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 4px;
+    border: 1px solid;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+    transition: all 0.15s;
+    background: transparent;
+  }
+
+  .btn-call { color: var(--green); border-color: #2a4a2a; }
+  .btn-call:hover { background: #1a2a1a; }
+  .btn-call.called { background: #1a3a1a; border-color: var(--green); }
+  .btn-email { color: var(--cold); border-color: #1a3a5a; }
+  .btn-email:hover { background: #0a1a2a; }
+  .btn-skip { color: var(--muted); border-color: var(--border2); }
+  .btn-skip:hover { color: var(--text); }
+
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  #upload-overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    z-index: 200; display: flex; align-items: center; justify-content: center;
+  }
+  #drop-zone {
+    border: 1px dashed var(--border2); border-radius: 8px;
+    padding: 52px 60px; text-align: center; max-width: 420px; width: 90%;
+    transition: border-color 0.15s, background 0.15s; cursor: pointer;
+  }
+  #drop-zone.drag-over { border-color: var(--hot); background: #1a0a08; }
+  #drop-zone .dz-icon { font-size: 36px; margin-bottom: 16px; }
+  #drop-zone h2 { font-family: var(--mono); font-size: 15px; font-weight: 500; margin-bottom: 8px; color: var(--text); }
+  #drop-zone p { font-size: 12px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+  .btn-upload {
+    display: inline-block; background: var(--surface); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--mono); font-size: 12px; padding: 9px 20px;
+    border-radius: 4px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s;
+  }
+  .btn-upload:hover { border-color: #555; background: #222; }
+  #drop-zone .hint { margin-top: 16px; font-size: 11px; color: #555; font-family: var(--mono); }
+
+  .csv-name {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    padding: 3px 8px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 3px; cursor: pointer;
+  }
+  .csv-name:hover { border-color: #555; color: var(--text); }
+
+  .progress-indicator {
+    padding: 6px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── TOAST NOTIFICATION ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #1a2a1a;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 20px;
+    border-radius: 4px;
+    z-index: 300;
+    transition: transform 0.25s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Upload Overlay -->
+<div id="upload-overlay">
+  <div id="drop-zone" onclick="document.getElementById('csv-input').click()">
+    <div class="dz-icon">&#128194;</div>
+    <h2>CSV laden</h2>
+    <p>Ziehe deine <code>leads_hannover.csv</code><br>hier rein oder klicke zum Auswählen.</p>
+    <label class="btn-upload">CSV auswählen</label>
+    <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+    <div class="hint">Ausgabe von lead_finder_hannover.py &middot; Semikolon oder Komma</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<header>
+  <h1>LEAD DASHBOARD</h1>
+  <span>Hannover &middot; Handwerker &middot; 2026</span>
+  <button class="csv-name" id="csv-filename" title="Neue CSV laden" onclick="document.getElementById('csv-input2').click()" style="margin-left:8px">&#8211; keine Datei &#8211;</button>
+  <input type="file" id="csv-input2" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+</header>
+
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-num" id="stat-total">–</div>
+    <div class="stat-label">Gesamt</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num hot-num" id="stat-hot">–</div>
+    <div class="stat-label">🔥 Heiß (≥70)</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num warm-num" id="stat-no-site">–</div>
+    <div class="stat-label">Ohne Website</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num cold-num" id="stat-old">–</div>
+    <div class="stat-label">Veraltete Site</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num green-num" id="stat-called">–</div>
+    <div class="stat-label">✓ Angerufen</div>
+  </div>
+</div>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="Firma suchen...">
+  <select id="filter-branche">
+    <option value="">Alle Branchen</option>
+  </select>
+  <select id="filter-status">
+    <option value="">Alle Status</option>
+    <option value="no-site">Ohne Website</option>
+    <option value="broken">Website kaputt</option>
+    <option value="old">Website alt (5+ J.)</option>
+    <option value="ok">Website OK</option>
+  </select>
+  <button class="btn" id="btn-hot" onclick="toggleHot()">🔥 Nur Heiße</button>
+
+  <!-- Duplikat-Gruppe -->
+  <div class="dupe-group">
+    <button class="btn" id="btn-dupes-show" onclick="toggleShowDupes()" title="Nur Duplikate anzeigen">⊗ Duplikate</button>
+    <button class="btn" id="btn-dupes-hide" onclick="toggleHideDupes()" title="Alle Duplikate ausblenden">⊘ Ausblenden</button>
+  </div>
+
+  <!-- Angerufen filter -->
+  <button class="btn" id="btn-hide-called" onclick="toggleHideCalled()" title="Bereits angerufene ausblenden">✓ Erledigte aus</button>
+
+  <button class="btn btn-export" onclick="exportCSV()">⬇ CSV Export</button>
+</div>
+
+<div class="progress-indicator">
+  <span id="result-count">Lade Daten...</span>
+  <span id="sort-info">Sortiert nach Score ↓</span>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="no-sort" title="Angerufen markieren">✓</th>
+        <th onclick="sortBy('score')" class="sort-active">Score <span class="sort-arrow">↓</span></th>
+        <th onclick="sortBy('name')">Firma <span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('branche')">Branche <span class="sort-arrow">↕</span></th>
+        <th>Website-Status</th>
+        <th onclick="sortBy('google_bewertungen')">Bewertungen <span class="sort-arrow">↕</span></th>
+        <th>Telefon</th>
+        <th onclick="sortBy('website_alter_jahre')">Alter Site <span class="sort-arrow">↕</span></th>
+      </tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+  <div id="empty-state" class="empty-state" style="display:none">Keine Leads gefunden.</div>
+</div>
+
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">×</button>
+  <div id="detail-content"></div>
+</div>
+
+<script>
+  // ─── CSV PARSER ───
+  function parseCSV(text) {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+    if (lines.length < 2) return [];
+
+    const sep = lines[0].includes(';') ? ';' : ',';
+
+    function parseLine(line) {
+      const fields = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+          if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+          else inQ = !inQ;
+        } else if (c === sep && !inQ) {
+          fields.push(cur.trim()); cur = '';
+        } else {
+          cur += c;
+        }
+      }
+      fields.push(cur.trim());
+      return fields;
+    }
+
+    const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+
+    return lines.slice(1).filter(l => l.trim()).map((line, idx) => {
+      const vals = parseLine(line);
+      const obj = { id: idx };
+      headers.forEach((h, i) => { obj[h] = vals[i] ?? ''; });
+
+      obj.name         = obj.name || obj.firma || obj.company || '(Unbekannt)';
+      obj.branche      = obj.branche || obj.kategorie || obj.category || '';
+      obj.telefon      = obj.telefon || obj.tel || obj.phone || obj.telefonnummer || '';
+      obj.adresse      = obj.adresse || obj.address || obj.anschrift || '';
+      obj.score        = parseInt(obj.score) || 0;
+      obj.google_rating       = parseFloat(obj.google_rating) || 0;
+      obj.google_bewertungen  = parseInt(obj.google_bewertungen) || 0;
+      obj.website_alter_jahre = parseInt(obj.website_alter_jahre) || null;
+      obj.ladezeit_ms         = parseInt(obj.ladezeit_ms) || null;
+      obj.hat_ssl             = obj.hat_ssl === 'True' || obj.hat_ssl === 'true' || obj.hat_ssl === '1';
+      obj.ist_mobilfreundlich = obj.ist_mobilfreundlich === '' ? null
+                                : (obj.ist_mobilfreundlich === 'True' || obj.ist_mobilfreundlich === 'true' || obj.ist_mobilfreundlich === '1');
+
+      // Status: aus CSV übernehmen (inkl. schon gespeichertes "angerufen")
+      obj.status = obj.status || 'neu';
+      obj.angerufen = (obj.status === 'angerufen') || (obj.angerufen === 'true' || obj.angerufen === '1' || obj.angerufen === 'True');
+
+      if (!obj.website_status) {
+        const hatSite = obj.hat_website === 'True' || obj.hat_website === 'true' || obj.hat_website === '1' || !!obj.website;
+        const erreichbar = obj.website_erreichbar === 'True' || obj.website_erreichbar === 'true';
+        if (!hatSite) obj.website_status = 'no-site';
+        else if (!erreichbar) obj.website_status = 'broken';
+        else if (obj.website_alter_jahre >= 5) obj.website_status = 'old';
+        else obj.website_status = 'ok';
+      }
+
+      if (typeof obj.score_gruende === 'string') {
+        obj.score_gruende = obj.score_gruende ? obj.score_gruende.split(' | ') : [];
+      }
+
+      return obj;
+    });
+  }
+
+  // ─── STATE ───
+  let allLeads = [];
+  let filtered = [];
+  let sortCol = 'score';
+  let sortDir = -1;
+  let showHotOnly    = false;
+  let showDupesOnly  = false;
+  let hideDupes      = false;   // NEU: Duplikate ausblenden
+  let hideCalled     = false;   // NEU: Angerufene ausblenden
+  let selectedId     = null;
+  let dupeIds        = new Set();
+
+  // ─── TOAST ───
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ─── DUPLIKAT-ERKENNUNG ───
+  function findDupeIds(leads) {
+    const dupeIds = new Set();
+
+    function normName(s) {
+      return (s || '').toLowerCase()
+        .replace(/gmbh|gbr|kg|ohg|ag|e\.k\.|ek|&|und|meisterbetrieb|fachbetrieb|service|betrieb/gi, '')
+        .replace(/[^a-z0-9äöü]/g, '').trim();
+    }
+
+    function normTel(s) {
+      return (s || '').replace(/[^0-9]/g, '').slice(-9);
+    }
+
+    const nameMap = {};
+    leads.forEach(l => {
+      const key = normName(l.name);
+      if (key.length < 4) return;
+      if (!nameMap[key]) nameMap[key] = [];
+      nameMap[key].push(l.id);
+    });
+    Object.values(nameMap).forEach(ids => {
+      if (ids.length > 1) ids.forEach(id => dupeIds.add(id));
+    });
+
+    const telMap = {};
+    leads.forEach(l => {
+      const key = normTel(l.telefon);
+      if (key.length < 6) return;
+      if (!telMap[key]) telMap[key] = [];
+      telMap[key].push(l.id);
+    });
+    Object.values(telMap).forEach(ids => {
+      if (ids.length > 1) ids.forEach(id => dupeIds.add(id));
+    });
+
+    return dupeIds;
+  }
+
+  // ─── STATS ───
+  function updateStats() {
+    document.getElementById('stat-total').textContent   = allLeads.length;
+    document.getElementById('stat-hot').textContent     = allLeads.filter(l => l.score >= 70).length;
+    document.getElementById('stat-no-site').textContent = allLeads.filter(l => l.website_status === 'no-site').length;
+    document.getElementById('stat-old').textContent     = allLeads.filter(l => l.website_status === 'old').length;
+    document.getElementById('stat-called').textContent  = allLeads.filter(l => l.angerufen).length;
+
+    const dupBtn = document.getElementById('btn-dupes-show');
+    const hideBtn = document.getElementById('btn-dupes-hide');
+    if (dupeIds.size > 0) {
+      dupBtn.textContent  = `⊗ Duplikate (${dupeIds.size})`;
+      hideBtn.textContent = `⊘ Ausblenden (${dupeIds.size})`;
+    }
+  }
+
+  // ─── FILTER ───
+  function applyFilters() {
+    const search  = document.getElementById('search').value.toLowerCase();
+    const branche = document.getElementById('filter-branche').value;
+    const status  = document.getElementById('filter-status').value;
+
+    filtered = allLeads.filter(l => {
+      if (search && !l.name.toLowerCase().includes(search) &&
+          !l.branche.toLowerCase().includes(search) &&
+          !l.telefon.includes(search)) return false;
+      if (branche && l.branche !== branche) return false;
+      if (status  && l.website_status !== status) return false;
+      if (showHotOnly   && l.score < 70) return false;
+      if (showDupesOnly && !dupeIds.has(l.id)) return false;
+      if (hideDupes     && dupeIds.has(l.id)) return false;   // NEU
+      if (hideCalled    && l.angerufen) return false;          // NEU
+      return true;
+    });
+
+    renderTable();
+  }
+
+  function toggleHot() {
+    showHotOnly = !showHotOnly;
+    document.getElementById('btn-hot').classList.toggle('active', showHotOnly);
+    applyFilters();
+  }
+
+  // Nur Duplikate anzeigen
+  function toggleShowDupes() {
+    showDupesOnly = !showDupesOnly;
+    if (showDupesOnly) hideDupes = false;   // schließt sich gegenseitig aus
+    document.getElementById('btn-dupes-show').classList.toggle('active-purple', showDupesOnly);
+    document.getElementById('btn-dupes-hide').classList.remove('active-purple');
+    applyFilters();
+  }
+
+  // Alle Duplikate ausblenden (NEU)
+  function toggleHideDupes() {
+    hideDupes = !hideDupes;
+    if (hideDupes) showDupesOnly = false;   // schließt sich gegenseitig aus
+    document.getElementById('btn-dupes-hide').classList.toggle('active-purple', hideDupes);
+    document.getElementById('btn-dupes-show').classList.remove('active-purple');
+    applyFilters();
+  }
+
+  // Angerufene ausblenden (NEU)
+  function toggleHideCalled() {
+    hideCalled = !hideCalled;
+    document.getElementById('btn-hide-called').classList.toggle('active-green', hideCalled);
+    applyFilters();
+  }
+
+  // ─── SORT ───
+  function sortBy(col) {
+    if (sortCol === col) sortDir *= -1;
+    else { sortCol = col; sortDir = -1; }
+
+    document.querySelectorAll('thead th').forEach(th => th.classList.remove('sort-active'));
+    filtered.sort((a, b) => {
+      const av = a[col] ?? -1, bv = b[col] ?? -1;
+      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+    });
+    document.getElementById('sort-info').textContent = `Sortiert nach ${col} ${sortDir === -1 ? '↓' : '↑'}`;
+    renderTable();
+  }
+
+  // ─── CHECKBOX: ANGERUFEN TOGGLE ───
+  function toggleAngerufen(id, event) {
+    event.stopPropagation();  // Verhindert Öffnen des Detail-Panels
+    const lead = allLeads.find(l => l.id === id);
+    if (!lead) return;
+    lead.angerufen = !lead.angerufen;
+    lead.status    = lead.angerufen ? 'angerufen' : 'neu';
+    updateStats();
+    renderTable();
+
+    // Wenn Detail-Panel diesen Lead zeigt, aktualisieren
+    if (selectedId === id) openDetail(id);
+
+    if (lead.angerufen) {
+      showToast(`✓ ${lead.name} als angerufen markiert`);
+    }
+  }
+
+  // ─── TABLE ───
+  function websiteBadge(l) {
+    if (l.website_status === 'no-site') return '<span class="badge badge-no-site">KEINE</span>';
+    if (l.website_status === 'broken')  return '<span class="badge badge-broken">KAPUTT</span>';
+    if (l.website_status === 'old')     return `<span class="badge badge-old">ALT ${l.website_alter_jahre}J</span>`;
+    return '<span class="badge badge-ok">OK</span>';
+  }
+
+  function scoreClass(s) {
+    if (s >= 70) return 'score-hot';
+    if (s >= 40) return 'score-warm';
+    return 'score-cold';
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('table-body');
+    document.getElementById('result-count').textContent = `${filtered.length} Leads`;
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '';
+      document.getElementById('empty-state').style.display = 'block';
+      return;
+    }
+    document.getElementById('empty-state').style.display = 'none';
+
+    tbody.innerHTML = filtered.map(l => `
+      <tr onclick="openDetail(${l.id})"
+          class="${l.angerufen ? 'angerufen' : ''} ${dupeIds.has(l.id) ? 'dupe-row' : ''}"
+          style="${l.id === selectedId ? 'background:var(--surface)' : ''}">
+        <td class="check-cell" onclick="toggleAngerufen(${l.id}, event)">
+          <input type="checkbox"
+                 class="call-checkbox"
+                 ${l.angerufen ? 'checked' : ''}
+                 onclick="toggleAngerufen(${l.id}, event)"
+                 title="${l.angerufen ? 'Als nicht angerufen markieren' : 'Als angerufen markieren'}">
+        </td>
+        <td><span class="score-pill ${scoreClass(l.score)}">${l.score}</span></td>
+        <td>
+          <div class="firma-name">
+            ${l.name}
+            ${dupeIds.has(l.id) ? ' <span class="badge badge-dupe">DUPLIKAT</span>' : ''}
+            ${l.angerufen ? ' <span class="badge badge-angerufen">ANGERUFEN</span>' : ''}
+          </div>
+        </td>
+        <td><span class="branche">${l.branche}</span></td>
+        <td>${websiteBadge(l)}</td>
+        <td style="font-family:var(--mono);font-size:12px">
+          ★ ${l.google_rating} <span style="color:var(--muted)">(${l.google_bewertungen})</span>
+        </td>
+        <td><span class="tel">${l.telefon}</span></td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">
+          ${l.website_alter_jahre ? l.website_alter_jahre + ' J.' : '—'}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // ─── DETAIL PANEL ───
+  function openDetail(id) {
+    const l = allLeads.find(x => x.id === id);
+    if (!l) return;
+    selectedId = id;
+
+    const scoreColor = l.score >= 70 ? 'var(--hot)' : l.score >= 40 ? 'var(--warm)' : 'var(--cold)';
+    const barColor   = l.score >= 70 ? '#ff4d2e' : l.score >= 40 ? '#f5a623' : '#4a9eff';
+
+    document.getElementById('detail-content').innerHTML = `
+      <div class="detail-title">${l.name}${l.angerufen ? ' <span class="badge badge-angerufen" style="font-size:10px">✓ ANGERUFEN</span>' : ''}</div>
+
+      <div class="detail-section">
+        <h3>Score</h3>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+          <span style="font-family:var(--mono);font-size:32px;font-weight:500;color:${scoreColor}">${l.score}</span>
+          <span style="color:var(--muted);font-size:13px">/ 100</span>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar-bg">
+            <div class="score-bar-fill" style="width:${l.score}%;background:${barColor}"></div>
+          </div>
+        </div>
+        <ul class="reason-list" style="margin-top:10px">
+          ${(l.score_gruende || []).map(g => `<li>${g}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div class="detail-section">
+        <h3>Kontakt</h3>
+        <div class="detail-row"><span class="detail-key">Telefon</span><span class="detail-val">${l.telefon}</span></div>
+        <div class="detail-row"><span class="detail-key">Adresse</span><span class="detail-val" style="font-size:11px">${l.adresse}</span></div>
+        <div class="detail-row"><span class="detail-key">Branche</span><span class="detail-val">${l.branche}</span></div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Website</h3>
+        <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">${websiteBadge(l)}</span></div>
+        ${l.website_alter_jahre ? `<div class="detail-row"><span class="detail-key">Alter</span><span class="detail-val">${l.website_alter_jahre} Jahre</span></div>` : ''}
+        ${l.ladezeit_ms ? `<div class="detail-row"><span class="detail-key">Ladezeit</span><span class="detail-val">${l.ladezeit_ms} ms</span></div>` : ''}
+        <div class="detail-row"><span class="detail-key">HTTPS</span><span class="detail-val">${l.hat_ssl ? '✓ Ja' : '✗ Nein'}</span></div>
+        ${l.ist_mobilfreundlich !== null ? `<div class="detail-row"><span class="detail-key">Mobil</span><span class="detail-val">${l.ist_mobilfreundlich ? '✓ Ja' : '✗ Nein'}</span></div>` : ''}
+      </div>
+
+      <div class="detail-section">
+        <h3>Google</h3>
+        <div class="detail-row"><span class="detail-key">Bewertung</span><span class="detail-val">★ ${l.google_rating}</span></div>
+        <div class="detail-row"><span class="detail-key">Anzahl</span><span class="detail-val">${l.google_bewertungen}</span></div>
+      </div>
+
+      <div class="action-btns">
+        <button class="action-btn btn-call ${l.angerufen ? 'called' : ''}"
+                onclick="toggleAngerufenDetail(${l.id})">
+          ${l.angerufen ? '✓ Angerufen' : '📞 Anrufen'}
+        </button>
+        <button class="action-btn btn-email" onclick="markAction(${l.id},'email')">✉ Email</button>
+        <button class="action-btn btn-skip" onclick="markAction(${l.id},'kein_interesse')">✗ Skip</button>
+      </div>
+    `;
+
+    document.getElementById('detail-panel').classList.add('open');
+  }
+
+  function toggleAngerufenDetail(id) {
+    const lead = allLeads.find(l => l.id === id);
+    if (!lead) return;
+    lead.angerufen = !lead.angerufen;
+    lead.status    = lead.angerufen ? 'angerufen' : 'neu';
+    updateStats();
+    renderTable();
+    openDetail(id);  // Panel neu rendern
+    if (lead.angerufen) showToast(`✓ ${lead.name} als angerufen markiert`);
+  }
+
+  function closeDetail() {
+    document.getElementById('detail-panel').classList.remove('open');
+    selectedId = null;
+  }
+
+  function markAction(id, action) {
+    const lead = allLeads.find(l => l.id === id);
+    if (lead) lead.status = action;
+    closeDetail();
+    showToast(`✓ Lead als "${action}" markiert`);
+  }
+
+  // ─── EXPORT CSV (mit angerufen-Status) ───
+  function exportCSV() {
+    const cols = [
+      'score','name','branche','telefon','adresse',
+      'website_status','website_alter_jahre',
+      'google_rating','google_bewertungen',
+      'status','angerufen'           // NEU: angerufen-Spalte
+    ];
+    const header = cols.join(';');
+    const rows = filtered.map(l => cols.map(c => {
+      let v = l[c] ?? '';
+      if (c === 'angerufen') v = l.angerufen ? 'true' : 'false';
+      return `"${String(v).replace(/"/g, '""')}"`;
+    }).join(';'));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `leads_hannover_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const calledCount = filtered.filter(l => l.angerufen).length;
+    showToast(`⬇ CSV exportiert – ${calledCount} Leads als "angerufen" markiert`);
+  }
+
+  // ─── UPLOAD ───
+  function handleFile(file) {
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) { alert('Bitte eine .csv Datei auswählen.'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const leads = parseCSV(e.target.result);
+        if (leads.length === 0) { alert('CSV leer oder Format nicht erkannt.'); return; }
+        document.getElementById('upload-overlay').style.display = 'none';
+        document.getElementById('csv-filename').textContent = file.name;
+        loadLeads(leads);
+      } catch(err) {
+        alert('Fehler beim Lesen: ' + err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  // ─── LOAD LEADS ───
+  function loadLeads(leads) {
+    allLeads  = leads.sort((a, b) => b.score - a.score);
+    dupeIds   = findDupeIds(allLeads);
+    filtered  = [...allLeads];
+
+    const sel = document.getElementById('filter-branche');
+    sel.innerHTML = '<option value="">Alle Branchen</option>';
+    const branchen = [...new Set(allLeads.map(l => l.branche).filter(Boolean))].sort();
+    branchen.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b; opt.textContent = b;
+      sel.appendChild(opt);
+    });
+
+    updateStats();
+    renderTable();
+
+    const calledInFile = allLeads.filter(l => l.angerufen).length;
+    if (calledInFile > 0) showToast(`${calledInFile} bereits angerufene Leads aus CSV übernommen`);
+  }
+
+  // ─── INIT ───
+  function init() {
+    document.getElementById('search').addEventListener('input', applyFilters);
+    document.getElementById('filter-branche').addEventListener('change', applyFilters);
+    document.getElementById('filter-status').addEventListener('change', applyFilters);
+
+    const zone = document.getElementById('drop-zone');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    document.getElementById('upload-overlay').style.display = 'flex';
+  }
+
+  init();
+</script>
+</body>
+</html>
