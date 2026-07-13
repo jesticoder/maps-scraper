@@ -22,6 +22,7 @@
     --cold:    #4a9eff;
     --green:   #22c55e;
     --purple:  #c084fc;
+    --noindex: #ff3ea5;
     --mono:    'IBM Plex Mono', monospace;
     --sans:    'IBM Plex Sans', sans-serif;
   }
@@ -159,7 +160,7 @@
   ═══════════════════════════════════════════ */
   .stats-bar {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     border-bottom: 1px solid var(--border);
   }
 
@@ -188,6 +189,7 @@
   .warm-num { color: var(--warm); }
   .cold-num { color: var(--cold); }
   .green-num{ color: var(--green); }
+  .noindex-num{ color: var(--noindex); }
 
   /* ═══════════════════════════════════════════
      CONTROLS BAR – filters & actions
@@ -364,6 +366,7 @@
   .badge-old      { background: #201608; color: #f5c842; border-color: #5a3a10; }
   .badge-ok       { background: #08180a; color: #4ade80; border-color: #1a4a1a; }
   .badge-broken   { background: #1a0a1a; color: var(--purple); border-color: #4a1a4a; }
+  .badge-noindex  { background: #2a0a1c; color: var(--noindex); border-color: #5a1a3a; }
   .badge-called   { background: #08180a; color: var(--green);  border-color: #1a4a1a; font-size: 9px; }
 
   .firma-name {
@@ -498,6 +501,20 @@
     height: 100%;
     border-radius: 2px;
     transition: width 0.5s ease;
+  }
+
+  /* ── Detail: noindex warning banner — the strongest pitch signal ── */
+  .noindex-banner {
+    margin: 0 18px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: #2a0a1c;
+    border: 1px solid var(--noindex);
+    border-radius: 4px;
+    color: var(--noindex);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.5;
   }
 
   /* ── Detail: call action block (most prominent) ── */
@@ -692,6 +709,10 @@
     <div class="stat-label">Veraltete Site</div>
   </div>
   <div class="stat">
+    <div class="stat-num noindex-num" id="stat-noindex">–</div>
+    <div class="stat-label">🚫 Noindex</div>
+  </div>
+  <div class="stat">
     <div class="stat-num green-num" id="stat-called">–</div>
     <div class="stat-label">✓ Erledigt</div>
   </div>
@@ -711,6 +732,7 @@
     <option value="">Alle Website-Status</option>
     <option value="no-site">Ohne Website</option>
     <option value="broken">Website kaputt</option>
+    <option value="noindex">Nicht indexiert (noindex)</option>
     <option value="old">Website alt (5+ J.)</option>
     <option value="ok">Website OK</option>
   </select>
@@ -753,6 +775,7 @@
           Branche <span class="sort-arrow">↕</span>
         </th>
         <th class="no-sort">Website</th>
+        <th class="no-sort" title="Noindex-Warnung oder PageSpeed-SEO-Score">SEO</th>
         <th class="no-sort">Telefon</th>
         <th onclick="sortBy('website_alter_jahre')" id="th-age">
           Site-Alter <span class="sort-arrow">↕</span>
@@ -870,6 +893,7 @@ function parseCSV(text) {
     obj.adresse = obj.adresse || obj.address  || obj.anschrift     || '';
     obj.email   = obj.email   || '';
     obj.website = obj.website || '';
+    obj.gbp_kategorien = obj.gbp_kategorien || '';
 
     // ── Numeric coercions ──
     obj.score               = parseInt(obj.score)               || 0;
@@ -877,6 +901,10 @@ function parseCSV(text) {
     obj.google_bewertungen  = parseInt(obj.google_bewertungen)  || 0;
     obj.website_alter_jahre = parseInt(obj.website_alter_jahre) || null;
     obj.ladezeit_ms         = parseInt(obj.ladezeit_ms)         || null;
+    // Leerer String = nie abgefragt (kein API-Key / Feature aus) → null, nicht 0
+    obj.pagespeed_seo_score         = obj.pagespeed_seo_score         === '' ? null : parseInt(obj.pagespeed_seo_score);
+    obj.pagespeed_performance_score = obj.pagespeed_performance_score === '' ? null : parseInt(obj.pagespeed_performance_score);
+    obj.gbp_fotos_anzahl            = obj.gbp_fotos_anzahl            === '' ? null : parseInt(obj.gbp_fotos_anzahl);
 
     // ── Boolean coercions ──
     const truthy = v => v === 'True' || v === 'true' || v === '1';
@@ -885,12 +913,20 @@ function parseCSV(text) {
     obj.website_erreichbar  = truthy(obj.website_erreichbar);
     obj.ist_mobilfreundlich = obj.ist_mobilfreundlich === ''
       ? null : truthy(obj.ist_mobilfreundlich);
+    obj.seo_noindex                     = truthy(obj.seo_noindex);
+    obj.seo_titel_vorhanden             = truthy(obj.seo_titel_vorhanden);
+    obj.seo_meta_beschreibung_vorhanden = truthy(obj.seo_meta_beschreibung_vorhanden);
+    obj.seo_thin_content                = truthy(obj.seo_thin_content);
 
     // ── Derived website status (used for badge + filter) ──
-    // Falls back gracefully if hat_website/website_erreichbar are missing
+    // Falls back gracefully if hat_website/website_erreichbar are missing.
+    // Priority: down > broken > noindex > old > ok — noindex ranks above "old"
+    // because a fresh, fast site that's excluded from Google is a stronger pitch
+    // than a merely outdated one.
     if (!obj.website_status) {
       if (!obj.hat_website)          obj.website_status = 'no-site';
       else if (!obj.website_erreichbar) obj.website_status = 'broken';
+      else if (obj.seo_noindex)      obj.website_status = 'noindex';
       else if (obj.website_alter_jahre >= 5) obj.website_status = 'old';
       else                            obj.website_status = 'ok';
     }
@@ -1008,6 +1044,7 @@ function updateStats() {
   document.getElementById('stat-hot').textContent     = allLeads.filter(l => l.score >= 70).length;
   document.getElementById('stat-no-site').textContent = allLeads.filter(l => l.website_status === 'no-site').length;
   document.getElementById('stat-old').textContent     = allLeads.filter(l => l.website_status === 'old').length;
+  document.getElementById('stat-noindex').textContent = allLeads.filter(l => l.seo_noindex).length;
   document.getElementById('stat-called').textContent  = allLeads.filter(l => l.angerufen).length;
 }
 
@@ -1133,8 +1170,19 @@ function toggleCalled(rowId, event) {
 function websiteBadge(l) {
   if (l.website_status === 'no-site') return '<span class="badge badge-no-site">KEINE</span>';
   if (l.website_status === 'broken')  return '<span class="badge badge-broken">KAPUTT</span>';
+  if (l.website_status === 'noindex') return '<span class="badge badge-noindex">NOINDEX</span>';
   if (l.website_status === 'old')     return `<span class="badge badge-old">ALT&nbsp;${l.website_alter_jahre}J</span>`;
   return '<span class="badge badge-ok">OK</span>';
+}
+
+// Compact SEO cell for the table: noindex warning takes priority over the score
+function seoCell(l) {
+  if (l.seo_noindex) return '<span class="badge badge-noindex" title="Von Google ausgeschlossen">🚫 NOINDEX</span>';
+  if (l.pagespeed_seo_score != null) {
+    const color = l.pagespeed_seo_score >= 70 ? 'var(--green)' : l.pagespeed_seo_score >= 50 ? 'var(--warm)' : 'var(--hot)';
+    return `<span style="font-family:var(--mono);font-size:12px;color:${color}">${l.pagespeed_seo_score}/100</span>`;
+  }
+  return '<span style="color:var(--muted)">—</span>';
 }
 
 // Returns CSS class for score pill based on tier
@@ -1212,6 +1260,9 @@ function renderTable() {
         <!-- Website: link or status badge -->
         <td>${siteCell}</td>
 
+        <!-- SEO: noindex warning or PageSpeed SEO score -->
+        <td>${seoCell(l)}</td>
+
         <!-- Phone – the most important piece of call-prep info -->
         <td class="tel-cell">${l.telefon || '<span style="color:var(--muted)">—</span>'}</td>
 
@@ -1288,6 +1339,14 @@ function openDetail(rowId) {
       </div>
       <button class="detail-close" onclick="closeDetail()">×</button>
     </div>
+
+    ${l.seo_noindex ? `
+    <!-- Noindex banner: the site works but Google is told not to list it —
+         the single strongest, most concrete pitch point for a call -->
+    <div class="noindex-banner">
+      🚫 <strong>NOINDEX</strong> — diese Seite schließt sich selbst per Meta-Tag
+      von der Google-Suche aus. Technisch online, aber bei Google unauffindbar.
+    </div>` : ''}
 
     <!-- Score block: big number + bar + reasons why this is a good lead -->
     <div class="detail-score-block">
@@ -1367,6 +1426,37 @@ function openDetail(rowId) {
       ${mobilRow}
     </div>
 
+    <!-- SEO section: on-page + PageSpeed signals for the pitch -->
+    <div class="detail-section">
+      <h3>SEO</h3>
+      <div class="detail-row">
+        <span class="dk">Title-Tag</span>
+        <span class="dv">${l.seo_titel_vorhanden ? '✓ Vorhanden' : '✗ Fehlt'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Meta-Description</span>
+        <span class="dv">${l.seo_meta_beschreibung_vorhanden ? '✓ Vorhanden' : '✗ Fehlt'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Noindex</span>
+        <span class="dv" style="${l.seo_noindex ? 'color:var(--noindex)' : ''}">${l.seo_noindex ? '🚫 Ja — ausgeschlossen' : '✓ Nein'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Thin Content</span>
+        <span class="dv">${l.seo_thin_content ? '⚠ Wenig Text' : '✓ OK'}</span>
+      </div>
+      ${l.pagespeed_seo_score != null ? `
+      <div class="detail-row">
+        <span class="dk">PageSpeed SEO</span>
+        <span class="dv">${l.pagespeed_seo_score}/100</span>
+      </div>` : ''}
+      ${l.pagespeed_performance_score != null ? `
+      <div class="detail-row">
+        <span class="dk">PageSpeed Performance</span>
+        <span class="dv">${l.pagespeed_performance_score}/100</span>
+      </div>` : ''}
+    </div>
+
     <!-- GOOGLE section -->
     <div class="detail-section">
       <h3>Google</h3>
@@ -1378,6 +1468,16 @@ function openDetail(rowId) {
         <span class="dk">Anzahl Reviews</span>
         <span class="dv">${l.google_bewertungen || '—'}</span>
       </div>
+      ${l.gbp_fotos_anzahl != null ? `
+      <div class="detail-row">
+        <span class="dk">Fotos im Profil</span>
+        <span class="dv">${l.gbp_fotos_anzahl}${l.gbp_fotos_anzahl === 0 ? ' ⚠' : ''}</span>
+      </div>` : ''}
+      ${l.gbp_kategorien ? `
+      <div class="detail-row">
+        <span class="dk">Kategorien</span>
+        <span class="dv" style="font-size:11px;white-space:normal;text-align:right">${l.gbp_kategorien}</span>
+      </div>` : ''}
       ${l.google_place_id ? `
       <div class="detail-row">
         <span class="dk">Place ID</span>
@@ -1437,7 +1537,11 @@ function exportCSV() {
     'website', 'hat_website', 'website_erreichbar',
     'website_alter_jahre', 'hat_ssl', 'ladezeit_ms',
     'ist_mobilfreundlich', 'wayback_datum',
+    'seo_titel_vorhanden', 'seo_meta_beschreibung_vorhanden',
+    'seo_noindex', 'seo_thin_content',
+    'pagespeed_seo_score', 'pagespeed_performance_score',
     'google_place_id', 'google_rating', 'google_bewertungen',
+    'gbp_fotos_anzahl', 'gbp_kategorien',
     'score', 'score_gruende', 'gefunden_am',
     'status'   // carries 'angerufen' / 'kein_interesse' / 'neu'
   ];
@@ -1453,7 +1557,9 @@ function exportCSV() {
       let v = l[c];
 
       // Re-serialise boolean fields to Python-style True/False
-      if (c === 'hat_ssl' || c === 'hat_website' || c === 'website_erreichbar') {
+      if (c === 'hat_ssl' || c === 'hat_website' || c === 'website_erreichbar'
+          || c === 'seo_titel_vorhanden' || c === 'seo_meta_beschreibung_vorhanden'
+          || c === 'seo_noindex' || c === 'seo_thin_content') {
         v = l[c] ? 'True' : 'False';
       } else if (c === 'ist_mobilfreundlich') {
         v = l[c] == null ? '' : (l[c] ? 'True' : 'False');

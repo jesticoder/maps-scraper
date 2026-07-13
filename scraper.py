@@ -31,6 +31,9 @@ sys.stdout.reconfigure(encoding='utf-8')
 # ─────────────────────────────────────────────
 load_dotenv()
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+# PageSpeed Insights läuft im selben Google-Cloud-Projekt — Key kann per
+# PAGESPEED_API_KEY überschrieben werden, fällt sonst auf den Places-Key zurück.
+PAGESPEED_API_KEY = os.getenv("PAGESPEED_API_KEY") or GOOGLE_PLACES_API_KEY
 
 BRANCHEN = [
     "Elektriker",
@@ -51,14 +54,24 @@ BRANCHEN = [
 ]
 
 ZIELSTADT = "Hannover"
-OUTPUT_FILE = "leads_hannover.csv"
-OUTPUT_JSON = "leads_hannover.json"
+# Dateiname folgt automatisch der Stadt — verhindert, dass ein Lauf für eine neue
+# Stadt (z.B. Hildesheim) die bereits gesammelten Leads einer anderen Stadt überschreibt.
+_stadt_slug = ZIELSTADT.lower().replace(" ", "_")
+OUTPUT_FILE = f"leads_{_stadt_slug}.csv"
+OUTPUT_JSON = f"leads_{_stadt_slug}.json"
 
 # Score-Schwelle: Leads mit Score >= X gelten als "heiß"
 HOT_LEAD_SCORE = 70
 
 # Anzahl gleichzeitiger Website-Checks pro Branche
 MAX_WORKERS = 10
+
+# PageSpeed Insights (SEO-/Performance-Score von Google selbst) pro Website abfragen?
+# Kostenlos, aber mit ~3-10s Antwortzeit der langsamste Einzelcheck — bei Bedarf abschalten.
+PRUEFE_PAGESPEED = True
+
+# Unterhalb dieser Wortzahl im sichtbaren Text gilt eine Seite als "Thin Content"
+MIN_WOERTER_CONTENT = 200
 
 
 # ─────────────────────────────────────────────
@@ -82,10 +95,20 @@ class Lead:
     ist_mobilfreundlich: Optional[bool] = None
     wayback_datum: str = ""
 
+    # SEO-Analyse
+    seo_titel_vorhanden: bool = False
+    seo_meta_beschreibung_vorhanden: bool = False
+    seo_noindex: bool = False
+    seo_thin_content: bool = False
+    pagespeed_seo_score: Optional[int] = None
+    pagespeed_performance_score: Optional[int] = None
+
     # Google-Daten
     google_place_id: str = ""
     google_rating: float = 0.0
     google_bewertungen: int = 0
+    gbp_fotos_anzahl: Optional[int] = None
+    gbp_kategorien: str = ""
 
     # Scoring
     score: int = 0
@@ -183,11 +206,13 @@ def _demo_daten(branche: str, stadt: str) -> list[dict]:
 
 
 def extrahiere_place_details(place_id: str, api_key: str) -> dict:
-    """Holt Detailinfos (Telefon, Website) für einen Place."""
+    """Holt Detailinfos (Telefon, Website, Fotos, Kategorien) für einen Place.
+    Hinweis: 'photos' zählt zur teureren Places-Details-SKU (Atmosphere Data) —
+    bei Kostendruck aus `fields` entfernen und gbp_fotos_anzahl bleibt None."""
     if not api_key or api_key == "GOOGLE_PLACES_API_KEY" or place_id.startswith("DEMO_"):
         return {}
 
-    fields = "formatted_phone_number,website,formatted_address"
+    fields = "formatted_phone_number,website,formatted_address,photos,types"
     url = (
         f"https://maps.googleapis.com/maps/api/place/details/json"
         f"?place_id={place_id}&fields={fields}&language=de&key={api_key}"
@@ -200,12 +225,37 @@ def extrahiere_place_details(place_id: str, api_key: str) -> dict:
         return {}
 
 
+def pruefe_pagespeed(url: str, api_key: str) -> dict:
+    """Fragt Google PageSpeed Insights (Lighthouse) für SEO- und Performance-Score ab.
+    Kostenlos, aber die langsamste Einzelabfrage der Pipeline (~3-10s, teils mehr)."""
+    r = {"pagespeed_seo_score": None, "pagespeed_performance_score": None}
+    if not PRUEFE_PAGESPEED or not url:
+        return r
+
+    params = {"url": url, "strategy": "mobile", "category": ["seo", "performance"]}
+    if api_key and api_key != "GOOGLE_PLACES_API_KEY":
+        params["key"] = api_key
+    psi_url = f"https://www.googleapis.com/pagespeedonline/v5/runPagespeed?{urllib.parse.urlencode(params, doseq=True)}"
+
+    try:
+        with urllib.request.urlopen(psi_url, timeout=20) as resp:
+            data = json.loads(resp.read().decode())
+            kategorien = data.get("lighthouseResult", {}).get("categories", {})
+            seo = kategorien.get("seo", {}).get("score")
+            perf = kategorien.get("performance", {}).get("score")
+            r["pagespeed_seo_score"] = round(seo * 100) if seo is not None else None
+            r["pagespeed_performance_score"] = round(perf * 100) if perf is not None else None
+    except Exception:
+        pass  # Timeout/Quota/unerreichbare Seite — kein harter Fehler für den Lead
+    return r
+
+
 # ─────────────────────────────────────────────
 # WEBSITE-ANALYSE  (läuft im Thread-Pool)
 # ─────────────────────────────────────────────
 def analysiere_website(url: str) -> dict:
-    """Prüft ob Website existiert, wie alt sie ist und Qualitätsfaktoren.
-    Wayback-Request läuft parallel zum HTTP-Check via inner ThreadPoolExecutor."""
+    """Prüft ob Website existiert, wie alt sie ist, Qualitäts- und SEO-Faktoren.
+    HTTP-Check, Wayback-Abfrage und PageSpeed Insights laufen parallel via inner ThreadPoolExecutor."""
     result = {
         "erreichbar": False,
         "hat_ssl": False,
@@ -214,6 +264,13 @@ def analysiere_website(url: str) -> dict:
         "alter_jahre": None,
         "ist_mobilfreundlich": None,
         "fehler": "",
+        "seo_titel_vorhanden": False,
+        "seo_meta_beschreibung_vorhanden": False,
+        "seo_noindex": False,
+        "seo_thin_content": False,
+        "pagespeed_seo_score": None,
+        "pagespeed_performance_score": None,
+        "email": "",
     }
 
     if not url:
@@ -224,7 +281,11 @@ def analysiere_website(url: str) -> dict:
 
     # ── HTTP-Check und Wayback gleichzeitig starten ──────────────────────────
     def _http_check():
-        r = {"erreichbar": False, "ladezeit_ms": None, "ist_mobilfreundlich": None, "fehler": ""}
+        r = {
+            "erreichbar": False, "ladezeit_ms": None, "ist_mobilfreundlich": None, "fehler": "",
+            "seo_titel_vorhanden": False, "seo_meta_beschreibung_vorhanden": False,
+            "seo_noindex": False, "seo_thin_content": False, "email": "",
+        }
         try:
             start = time.time()
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -233,6 +294,37 @@ def analysiere_website(url: str) -> dict:
                 r["erreichbar"] = resp.status == 200
                 r["ladezeit_ms"] = int((time.time() - start) * 1000)
                 r["ist_mobilfreundlich"] = "viewport" in inhalt.lower()
+
+                # On-Page-SEO-Signale aus dem bereits geladenen HTML — kein Extra-Request
+                titel = re.search(r"<title[^>]*>(.*?)</title>", inhalt, re.IGNORECASE | re.DOTALL)
+                r["seo_titel_vorhanden"] = bool(titel and titel.group(1).strip())
+
+                meta_desc = re.search(
+                    r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']*)["\']',
+                    inhalt, re.IGNORECASE,
+                )
+                r["seo_meta_beschreibung_vorhanden"] = bool(meta_desc and meta_desc.group(1).strip())
+
+                robots_meta = re.search(
+                    r'<meta[^>]+name=["\']robots["\'][^>]+content=["\']([^"\']*)["\']',
+                    inhalt, re.IGNORECASE,
+                )
+                r["seo_noindex"] = bool(robots_meta and "noindex" in robots_meta.group(1).lower())
+
+                ohne_script_style = re.sub(
+                    r"<(script|style)[^>]*>.*?</\1>", " ", inhalt, flags=re.IGNORECASE | re.DOTALL
+                )
+                text_only = re.sub(r"<[^>]+>", " ", ohne_script_style)
+                r["seo_thin_content"] = len(text_only.split()) < MIN_WOERTER_CONTENT
+
+                # E-Mail: zuerst mailto:-Links (zuverlässig), sonst Fließtext-Suche
+                # im script/style-bereinigten Text (vermeidet Treffer in Tracking-JS o.ä.)
+                mailto = re.search(r"mailto:([\w.+-]+@[\w.-]+\.\w{2,})", inhalt, re.IGNORECASE)
+                if mailto:
+                    r["email"] = mailto.group(1)
+                else:
+                    email_match = re.search(r"\b[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}\b", text_only)
+                    r["email"] = email_match.group(0) if email_match else ""
         except urllib.error.HTTPError as e:
             r["fehler"] = f"HTTP {e.code}"
         except urllib.error.URLError as e:
@@ -258,14 +350,20 @@ def analysiere_website(url: str) -> dict:
             pass
         return r
 
-    with ThreadPoolExecutor(max_workers=2) as inner:
+    def _pagespeed_check():
+        return pruefe_pagespeed(url, PAGESPEED_API_KEY)
+
+    with ThreadPoolExecutor(max_workers=3) as inner:
         f_http = inner.submit(_http_check)
         f_wb = inner.submit(_wayback_check)
+        f_ps = inner.submit(_pagespeed_check)
         http_r = f_http.result()
         wb_r = f_wb.result()
+        ps_r = f_ps.result()
 
     result.update(http_r)
     result.update(wb_r)
+    result.update(ps_r)
     return result
 
 
@@ -305,6 +403,34 @@ def berechne_score(lead: Lead) -> tuple[int, list[str]]:
             score += 5
             gruende.append(f"Langsam ({lead.ladezeit_ms}ms) (+5)")
 
+        # ── SEO-Signale — nur aussagekräftig wenn die Seite überhaupt lädt ──
+        if lead.seo_noindex:
+            score += 20
+            gruende.append("Seite per noindex von Google ausgeschlossen! (+20)")
+
+        if not lead.seo_titel_vorhanden or not lead.seo_meta_beschreibung_vorhanden:
+            score += 10
+            gruende.append("Kein Title-Tag oder keine Meta-Description (+10)")
+
+        if lead.seo_thin_content:
+            score += 10
+            gruende.append(f"Wenig Textinhalt / Thin Content (<{MIN_WOERTER_CONTENT} Wörter) (+10)")
+
+        if lead.pagespeed_seo_score is not None and lead.pagespeed_seo_score < 70:
+            score += 15
+            gruende.append(f"Schwacher PageSpeed-SEO-Score ({lead.pagespeed_seo_score}/100) (+15)")
+
+        if lead.pagespeed_performance_score is not None and lead.pagespeed_performance_score < 50:
+            score += 15
+            gruende.append(f"Sehr schwache PageSpeed-Performance ({lead.pagespeed_performance_score}/100) (+15)")
+        elif lead.pagespeed_performance_score is not None and lead.pagespeed_performance_score < 70:
+            score += 5
+            gruende.append(f"Mittelmäßige PageSpeed-Performance ({lead.pagespeed_performance_score}/100) (+5)")
+
+    if lead.gbp_fotos_anzahl == 0:
+        score += 5
+        gruende.append("Kein Foto im Google-Unternehmensprofil (+5)")
+
     if lead.google_bewertungen >= 50:
         score += 10
         gruende.append(f"Viele Bewertungen ({lead.google_bewertungen}) (+10)")
@@ -338,6 +464,12 @@ def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
 
     website_url = place.get("website", "")
 
+    # fotos ist None wenn das Feld nie abgefragt wurde (Demo-Modus / kein API-Key),
+    # und eine leere Liste wenn Google es abgefragt und kein Foto gefunden hat —
+    # dieser Unterschied ist scoring-relevant, siehe berechne_score().
+    fotos = place.get("photos")
+    kategorien = place.get("types") or []
+
     lead = Lead(
         name=name,
         branche=branche,
@@ -347,6 +479,8 @@ def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
         google_place_id=place_id,
         google_rating=place.get("rating", 0.0),
         google_bewertungen=place.get("user_ratings_total", 0),
+        gbp_fotos_anzahl=len(fotos) if fotos is not None else None,
+        gbp_kategorien=", ".join(kategorien[:5]),
     )
 
     if website_url:
@@ -358,6 +492,13 @@ def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
         lead.wayback_datum = analyse["wayback_datum"]
         lead.website_alter_jahre = analyse["alter_jahre"]
         lead.ist_mobilfreundlich = analyse["ist_mobilfreundlich"]
+        lead.seo_titel_vorhanden = analyse["seo_titel_vorhanden"]
+        lead.seo_meta_beschreibung_vorhanden = analyse["seo_meta_beschreibung_vorhanden"]
+        lead.seo_noindex = analyse["seo_noindex"]
+        lead.seo_thin_content = analyse["seo_thin_content"]
+        lead.pagespeed_seo_score = analyse["pagespeed_seo_score"]
+        lead.pagespeed_performance_score = analyse["pagespeed_performance_score"]
+        lead.email = analyse["email"]
     else:
         lead.hat_website = False
 
@@ -426,6 +567,7 @@ def drucke_zusammenfassung(alle_leads: list[Lead]):
     heiss = [l for l in alle_leads if l.score >= HOT_LEAD_SCORE]
     ohne_website = [l for l in alle_leads if not l.hat_website]
     alte_website = [l for l in alle_leads if l.hat_website and l.website_alter_jahre and l.website_alter_jahre >= 5]
+    noindex = [l for l in alle_leads if l.seo_noindex]
 
     print("\n" + "=" * 60)
     print("  ZUSAMMENFASSUNG")
@@ -434,6 +576,7 @@ def drucke_zusammenfassung(alle_leads: list[Lead]):
     print(f"  🔥 Heiße Leads (Score≥{HOT_LEAD_SCORE}):   {len(heiss)}")
     print(f"  🌐 Ohne Website:               {len(ohne_website)}")
     print(f"  🕰  Website älter als 5 Jahre:  {len(alte_website)}")
+    print(f"  🚫 Bei Google ausgeschlossen (noindex): {len(noindex)}")
     print()
     print("  TOP 5 LEADS:")
     print("  " + "-" * 56)
