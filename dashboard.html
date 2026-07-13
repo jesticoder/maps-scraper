@@ -5,21 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lead Dashboard – Hannover Handwerker</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
+  /* ─── CSS VARIABLES ─── */
   :root {
-    --bg: #0f0f0f;
-    --surface: #171717;
-    --border: #2a2a2a;
-    --border2: #333;
-    --text: #e8e8e8;
-    --muted: #888;
-    --hot: #ff4d2e;
-    --warm: #f5a623;
-    --cold: #4a9eff;
-    --green: #22c55e;
-    --mono: 'IBM Plex Mono', monospace;
-    --sans: 'IBM Plex Sans', sans-serif;
+    --bg:      #0c0c0c;
+    --surface: #141414;
+    --surface2:#1c1c1c;
+    --border:  #252525;
+    --border2: #303030;
+    --text:    #e8e8e8;
+    --muted:   #666;
+    --muted2:  #888;
+    --hot:     #ff4d2e;
+    --warm:    #f5a623;
+    --cold:    #4a9eff;
+    --green:   #22c55e;
+    --purple:  #c084fc;
+    --mono:    'IBM Plex Mono', monospace;
+    --sans:    'IBM Plex Sans', sans-serif;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,30 +34,129 @@
     font-family: var(--sans);
     font-size: 14px;
     min-height: 100vh;
+    /* When detail panel is open, prevent body scroll */
   }
 
+  /* ═══════════════════════════════════════════
+     UPLOAD OVERLAY – shown on first load
+  ═══════════════════════════════════════════ */
+  #upload-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #drop-zone {
+    border: 1px dashed var(--border2);
+    border-radius: 6px;
+    padding: 52px 60px;
+    text-align: center;
+    max-width: 440px;
+    width: 90%;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+  }
+
+  #drop-zone.drag-over {
+    border-color: var(--hot);
+    background: #1a0a08;
+  }
+
+  #drop-zone .dz-icon { font-size: 40px; margin-bottom: 18px; }
+
+  #drop-zone h2 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+
+  #drop-zone p {
+    font-size: 12px;
+    color: var(--muted2);
+    margin-bottom: 24px;
+    line-height: 1.7;
+  }
+
+  #drop-zone p code {
+    color: var(--text);
+    background: var(--surface2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .btn-upload {
+    display: inline-block;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 9px 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.15s;
+  }
+  .btn-upload:hover { border-color: #555; background: #1e1e1e; }
+
+  #drop-zone .hint {
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* ═══════════════════════════════════════════
+     HEADER
+  ═══════════════════════════════════════════ */
   header {
-    padding: 20px 24px 16px;
+    padding: 16px 24px;
     border-bottom: 1px solid var(--border);
     display: flex;
-    align-items: baseline;
-    gap: 16px;
+    align-items: center;
+    gap: 14px;
   }
 
   header h1 {
     font-family: var(--mono);
-    font-size: 15px;
-    font-weight: 500;
-    letter-spacing: 0.05em;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     color: var(--text);
   }
 
-  header span {
+  header .subtitle {
     font-family: var(--mono);
     font-size: 11px;
     color: var(--muted);
+    flex: 1;
   }
 
+  /* Clickable filename badge – click to reload a new CSV */
+  .csv-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted2);
+    padding: 3px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .csv-badge:hover { border-color: #555; color: var(--text); }
+
+  /* ═══════════════════════════════════════════
+     STATS BAR – 5 quick numbers at a glance
+  ═══════════════════════════════════════════ */
   .stats-bar {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -61,64 +164,66 @@
   }
 
   .stat {
-    padding: 14px 20px;
+    padding: 14px 22px;
     border-right: 1px solid var(--border);
   }
   .stat:last-child { border-right: none; }
 
   .stat-num {
     font-family: var(--mono);
-    font-size: 24px;
-    font-weight: 500;
+    font-size: 26px;
+    font-weight: 600;
     line-height: 1;
   }
 
   .stat-label {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 4px;
+    font-size: 10px;
+    color: var(--muted2);
+    margin-top: 5px;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
   }
 
-  .hot-num { color: var(--hot); }
+  .hot-num  { color: var(--hot); }
   .warm-num { color: var(--warm); }
   .cold-num { color: var(--cold); }
-  .green-num { color: var(--green); }
+  .green-num{ color: var(--green); }
 
+  /* ═══════════════════════════════════════════
+     CONTROLS BAR – filters & actions
+  ═══════════════════════════════════════════ */
   .controls {
     display: flex;
-    gap: 10px;
-    padding: 12px 20px;
+    gap: 8px;
+    padding: 10px 20px;
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
     align-items: center;
   }
 
-  .controls input, .controls select {
+  .controls input,
+  .controls select {
     background: var(--surface);
     border: 1px solid var(--border2);
     color: var(--text);
     font-family: var(--sans);
     font-size: 13px;
-    padding: 7px 12px;
+    padding: 6px 11px;
     border-radius: 4px;
     outline: none;
   }
+  .controls input:focus,
+  .controls select:focus { border-color: #555; }
+  .controls input[type="text"] { width: 200px; }
 
-  .controls input:focus, .controls select:focus {
-    border-color: #555;
-  }
-
-  .controls input[type="text"] { width: 220px; }
-
+  /* Generic filter/action button */
   .btn {
     background: transparent;
     border: 1px solid var(--border2);
-    color: var(--muted);
+    color: var(--muted2);
     font-family: var(--mono);
     font-size: 11px;
-    padding: 7px 12px;
+    padding: 6px 11px;
     border-radius: 4px;
     cursor: pointer;
     text-transform: uppercase;
@@ -126,46 +231,39 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
+  .btn:hover            { border-color: #555; color: var(--text); }
+  .btn.active           { border-color: var(--hot);   color: var(--hot); }
+  .btn.active-green     { border-color: var(--green);  color: var(--green); }
 
-  .btn:hover { border-color: #555; color: var(--text); }
-  .btn.active { border-color: var(--hot); color: var(--hot); }
-  .btn.active-green { border-color: var(--green); color: var(--green); }
-  .btn.active-purple { border-color: #c084fc; color: #c084fc; }
-
+  /* Export button – pushed to the right */
   .btn-export {
     margin-left: auto;
     background: var(--surface);
     color: var(--green);
-    border-color: #2a4a2a;
+    border-color: #253525;
   }
-  .btn-export:hover { background: #1a2a1a; }
+  .btn-export:hover { background: #182318; }
 
-  /* ── DUPE CONTROLS GROUP ── */
-  .dupe-group {
+  /* Result count + sort info row */
+  .info-bar {
     display: flex;
-    gap: 0;
-    border-radius: 4px;
-    overflow: hidden;
-    border: 1px solid var(--border2);
-  }
-  .dupe-group .btn {
-    border: none;
-    border-radius: 0;
-    border-right: 1px solid var(--border2);
-  }
-  .dupe-group .btn:last-child { border-right: none; }
-
-  .table-wrap {
-    overflow-x: auto;
+    justify-content: space-between;
+    padding: 5px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
+  /* ═══════════════════════════════════════════
+     TABLE
+  ═══════════════════════════════════════════ */
+  .table-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; }
 
   thead th {
-    padding: 10px 16px;
+    padding: 9px 14px;
     text-align: left;
     font-family: var(--mono);
     font-size: 10px;
@@ -177,103 +275,82 @@
     background: var(--surface);
     position: sticky;
     top: 0;
+    z-index: 10;
     cursor: pointer;
     user-select: none;
     white-space: nowrap;
   }
-
-  thead th:hover { color: var(--text); }
-  thead th.no-sort { cursor: default; }
-  thead th.no-sort:hover { color: var(--muted); }
-
-  thead th .sort-arrow { margin-left: 4px; opacity: 0.4; }
-  thead th.sort-active .sort-arrow { opacity: 1; color: var(--hot); }
+  thead th:hover                  { color: var(--text); }
+  thead th.no-sort                { cursor: default; }
+  thead th.no-sort:hover          { color: var(--muted); }
+  thead th .sort-arrow            { margin-left: 3px; opacity: 0.3; }
+  thead th.sort-active .sort-arrow{ opacity: 1; color: var(--hot); }
 
   tbody tr {
     border-bottom: 1px solid var(--border);
-    transition: background 0.1s;
+    transition: background 0.08s;
     cursor: pointer;
   }
-
   tbody tr:hover { background: var(--surface); }
 
-  /* ── ANGERUFEN STATE ── */
-  tbody tr.angerufen {
-    opacity: 0.45;
-  }
-  tbody tr.angerufen td .firma-name {
-    text-decoration: line-through;
-    color: var(--muted);
-  }
-  tbody tr.angerufen .score-pill {
-    opacity: 0.5;
-  }
+  /* Rows marked as called get faded + strikethrough on name */
+  tbody tr.called-row              { opacity: 0.38; }
+  tbody tr.called-row .firma-name  { text-decoration: line-through; }
+  tbody tr.called-row .score-pill  { opacity: 0.5; }
 
   td {
-    padding: 10px 16px;
+    padding: 9px 14px;
     font-size: 13px;
     vertical-align: middle;
     white-space: nowrap;
   }
 
-  /* ── CHECKBOX CELL ── */
+  /* Checkbox column – narrow, no row-click propagation */
   td.check-cell {
-    padding: 10px 8px 10px 16px;
-    width: 36px;
+    padding: 9px 6px 9px 14px;
+    width: 34px;
   }
 
   .call-checkbox {
     appearance: none;
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 17px; height: 17px;
     border: 1px solid var(--border2);
     border-radius: 3px;
     background: transparent;
     cursor: pointer;
     position: relative;
-    transition: all 0.15s;
-    flex-shrink: 0;
+    transition: all 0.12s;
     display: block;
   }
-
-  .call-checkbox:hover {
-    border-color: var(--green);
-    background: #0a1a0a;
-  }
-
-  .call-checkbox:checked {
-    background: #1a3a1a;
-    border-color: var(--green);
-  }
-
+  .call-checkbox:hover          { border-color: var(--green); background: #0a1a0a; }
+  .call-checkbox:checked        { background: #1a3a1a; border-color: var(--green); }
   .call-checkbox:checked::after {
     content: '✓';
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     color: var(--green);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1;
+    font-size: 10px; font-weight: 700; line-height: 1;
   }
 
+  /* Score pill – colour-coded by tier */
   .score-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
     font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 500;
-    padding: 3px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 3px 9px;
     border-radius: 3px;
+    min-width: 42px;
+    justify-content: center;
   }
+  .score-hot  { background: #200a07; color: var(--hot);  border: 1px solid #5a1a10; }
+  .score-warm { background: #201608; color: var(--warm); border: 1px solid #5a3a10; }
+  .score-cold { background: #08141e; color: var(--cold); border: 1px solid #1a3a5a; }
 
-  .score-hot { background: #2a0f0a; color: var(--hot); border: 1px solid #5a1a10; }
-  .score-warm { background: #2a1e08; color: var(--warm); border: 1px solid #5a3a10; }
-  .score-cold { background: #0a1a2a; color: var(--cold); border: 1px solid #1a3a5a; }
-
+  /* Small status/tag badges */
   .badge {
     display: inline-block;
     font-size: 10px;
@@ -281,125 +358,41 @@
     padding: 2px 6px;
     border-radius: 2px;
     border: 1px solid;
+    vertical-align: middle;
   }
+  .badge-no-site  { background: #200a07; color: #ff6b4e; border-color: #5a1a10; }
+  .badge-old      { background: #201608; color: #f5c842; border-color: #5a3a10; }
+  .badge-ok       { background: #08180a; color: #4ade80; border-color: #1a4a1a; }
+  .badge-broken   { background: #1a0a1a; color: var(--purple); border-color: #4a1a4a; }
+  .badge-called   { background: #08180a; color: var(--green);  border-color: #1a4a1a; font-size: 9px; }
 
-  .badge-no-site { background: #2a0f0a; color: #ff6b4e; border-color: #5a1a10; }
-  .badge-old { background: #2a1e08; color: #f5c842; border-color: #5a3a10; }
-  .badge-ok { background: #0a1a0a; color: #4ade80; border-color: #1a4a1a; }
-  .badge-broken { background: #2a0a2a; color: #c084fc; border-color: #4a1a4a; }
-  .badge-dupe { background: #2a1a2a; color: #c084fc; border-color: #6a2a8a; }
-  .badge-angerufen { background: #0a1a0a; color: var(--green); border-color: #2a4a2a; font-size: 9px; }
-
-  .firma-name { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-  .tel { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .branche { font-size: 11px; color: var(--muted); }
-
-  .dupe-row td:first-child { border-left: 2px solid #6a2a8a; }
-
-  .detail-panel {
-    display: none;
-    position: fixed;
-    right: 0; top: 0; bottom: 0;
-    width: 360px;
-    background: var(--surface);
-    border-left: 1px solid var(--border2);
-    z-index: 100;
-    overflow-y: auto;
-    padding: 20px;
-  }
-
-  .detail-panel.open { display: block; }
-
-  .detail-close {
-    position: absolute;
-    top: 14px; right: 14px;
-    background: none;
-    border: 1px solid var(--border2);
-    color: var(--muted);
-    width: 28px; height: 28px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  .detail-close:hover { color: var(--text); border-color: #555; }
-
-  .detail-title {
-    font-family: var(--mono);
-    font-size: 13px;
+  .firma-name {
     font-weight: 500;
-    margin-bottom: 16px;
-    padding-right: 36px;
-    line-height: 1.4;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .detail-section {
-    margin-bottom: 16px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .detail-section:last-child { border-bottom: none; }
-
-  .detail-section h3 {
+  .tel-cell {
     font-family: var(--mono);
-    font-size: 10px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 10px;
-  }
-
-  .detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 8px;
-    margin-bottom: 7px;
-    font-size: 13px;
-  }
-
-  .detail-key { color: var(--muted); flex-shrink: 0; }
-  .detail-val { text-align: right; font-family: var(--mono); font-size: 12px; word-break: break-all; }
-
-  .score-bar-wrap { margin: 8px 0 4px; }
-  .score-bar-bg { background: var(--border); border-radius: 2px; height: 6px; overflow: hidden; }
-  .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
-
-  .reason-list { list-style: none; }
-  .reason-list li {
     font-size: 12px;
-    color: var(--text);
-    padding: 4px 0;
-    border-bottom: 1px solid var(--border);
-    font-family: var(--mono);
+    color: var(--muted2);
+    letter-spacing: 0.02em;
   }
-  .reason-list li:last-child { border-bottom: none; }
 
-  .action-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-  .action-btn {
-    flex: 1;
-    padding: 9px 12px;
-    border-radius: 4px;
-    border: 1px solid;
-    cursor: pointer;
+  /* Clickable website link in table */
+  .site-link {
     font-family: var(--mono);
     font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    text-align: center;
-    transition: all 0.15s;
-    background: transparent;
+    color: var(--cold);
+    text-decoration: none;
+    max-width: 160px;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
   }
-
-  .btn-call { color: var(--green); border-color: #2a4a2a; }
-  .btn-call:hover { background: #1a2a1a; }
-  .btn-call.called { background: #1a3a1a; border-color: var(--green); }
-  .btn-email { color: var(--cold); border-color: #1a3a5a; }
-  .btn-email:hover { background: #0a1a2a; }
-  .btn-skip { color: var(--muted); border-color: var(--border2); }
-  .btn-skip:hover { color: var(--text); }
+  .site-link:hover { text-decoration: underline; }
 
   .empty-state {
     padding: 60px 20px;
@@ -409,48 +402,220 @@
     font-size: 13px;
   }
 
-  #upload-overlay {
-    position: fixed; inset: 0; background: var(--bg);
-    z-index: 200; display: flex; align-items: center; justify-content: center;
+  /* ═══════════════════════════════════════════
+     DETAIL PANEL – slides in from the right
+     This is the main "call prep" view
+  ═══════════════════════════════════════════ */
+  .detail-panel {
+    display: none;
+    position: fixed;
+    right: 0; top: 0; bottom: 0;
+    width: 400px;
+    background: var(--surface);
+    border-left: 1px solid var(--border2);
+    z-index: 100;
+    overflow-y: auto;
+    /* padding handled inside sections */
   }
-  #drop-zone {
-    border: 1px dashed var(--border2); border-radius: 8px;
-    padding: 52px 60px; text-align: center; max-width: 420px; width: 90%;
-    transition: border-color 0.15s, background 0.15s; cursor: pointer;
-  }
-  #drop-zone.drag-over { border-color: var(--hot); background: #1a0a08; }
-  #drop-zone .dz-icon { font-size: 36px; margin-bottom: 16px; }
-  #drop-zone h2 { font-family: var(--mono); font-size: 15px; font-weight: 500; margin-bottom: 8px; color: var(--text); }
-  #drop-zone p { font-size: 12px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
-  .btn-upload {
-    display: inline-block; background: var(--surface); border: 1px solid var(--border2);
-    color: var(--text); font-family: var(--mono); font-size: 12px; padding: 9px 20px;
-    border-radius: 4px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; transition: all 0.15s;
-  }
-  .btn-upload:hover { border-color: #555; background: #222; }
-  #drop-zone .hint { margin-top: 16px; font-size: 11px; color: #555; font-family: var(--mono); }
+  .detail-panel.open { display: flex; flex-direction: column; }
 
-  .csv-name {
-    font-family: var(--mono); font-size: 11px; color: var(--muted);
-    padding: 3px 8px; background: var(--surface); border: 1px solid var(--border);
-    border-radius: 3px; cursor: pointer;
-  }
-  .csv-name:hover { border-color: #555; color: var(--text); }
-
-  .progress-indicator {
-    padding: 6px 20px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
+  /* ── Detail: top bar with name + close ── */
+  .detail-header {
+    padding: 16px 18px;
     border-bottom: 1px solid var(--border);
     display: flex;
-    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 5;
   }
 
-  /* ── TOAST NOTIFICATION ── */
+  .detail-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    flex: 1;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .detail-close {
+    background: none;
+    border: 1px solid var(--border2);
+    color: var(--muted2);
+    width: 26px; height: 26px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .detail-close:hover { color: var(--text); border-color: #555; }
+
+  /* ── Detail: score hero block ── */
+  .detail-score-block {
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .big-score {
+    font-family: var(--mono);
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .score-reasons {
+    flex: 1;
+  }
+
+  .score-reason-item {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted2);
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.4;
+  }
+  .score-reason-item:last-child { border-bottom: none; }
+
+  .score-bar-bg {
+    background: var(--border);
+    border-radius: 2px;
+    height: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* ── Detail: call action block (most prominent) ── */
+  .detail-call-block {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .detail-phone {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .detail-phone .no-phone {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  /* Big call / skip buttons */
+  .call-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-big-call {
+    flex: 1;
+    padding: 11px 16px;
+    border-radius: 4px;
+    border: 1px solid #253525;
+    background: #0f1f0f;
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .btn-big-call:hover     { background: #182a18; }
+  .btn-big-call.was-called{ background: #1a3a1a; border-color: var(--green); }
+
+  .btn-big-skip {
+    padding: 11px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--muted2);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-big-skip:hover { color: var(--text); border-color: #555; }
+
+  /* ── Detail: info sections ── */
+  .detail-section {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-section:last-child { border-bottom: none; }
+
+  .detail-section h3 {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    margin-bottom: 10px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 7px;
+    font-size: 13px;
+  }
+  .detail-row:last-child { margin-bottom: 0; }
+
+  .dk { color: var(--muted2); flex-shrink: 0; font-size: 12px; }
+
+  .dv {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 12px;
+    word-break: break-all;
+    color: var(--text);
+  }
+
+  /* Website URL shown in detail */
+  .website-link {
+    color: var(--cold);
+    text-decoration: none;
+    font-family: var(--mono);
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .website-link:hover { text-decoration: underline; }
+
+  /* ═══════════════════════════════════════════
+     TOAST – brief confirmation pop-up
+  ═══════════════════════════════════════════ */
   .toast {
     position: fixed;
-    bottom: 24px;
+    bottom: 22px;
     left: 50%;
     transform: translateX(-50%) translateY(80px);
     background: #1a2a1a;
@@ -458,10 +623,10 @@
     color: var(--green);
     font-family: var(--mono);
     font-size: 12px;
-    padding: 10px 20px;
+    padding: 9px 18px;
     border-radius: 4px;
-    z-index: 300;
-    transition: transform 0.25s ease;
+    z-index: 400;
+    transition: transform 0.22s ease;
     pointer-events: none;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
@@ -469,28 +634,46 @@
 </head>
 <body>
 
-<!-- Upload Overlay -->
+<!-- ═══════════════════════════════════════════════
+     UPLOAD OVERLAY
+     Shown on load; hidden once a CSV is parsed.
+═══════════════════════════════════════════════ -->
 <div id="upload-overlay">
   <div id="drop-zone" onclick="document.getElementById('csv-input').click()">
-    <div class="dz-icon">&#128194;</div>
+    <div class="dz-icon">📂</div>
     <h2>CSV laden</h2>
-    <p>Ziehe deine <code>leads_hannover.csv</code><br>hier rein oder klicke zum Auswählen.</p>
+    <p>
+      Ziehe deine <code>leads_hannover.csv</code><br>
+      hier rein oder klicke zum Auswählen.
+    </p>
     <label class="btn-upload">CSV auswählen</label>
-    <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
-    <div class="hint">Ausgabe von lead_finder_hannover.py &middot; Semikolon oder Komma</div>
+    <input type="file" id="csv-input" accept=".csv" style="display:none"
+           onchange="handleFile(this.files[0])">
+    <div class="hint">Ausgabe von lead_finder_hannover.py · Semikolon oder Komma</div>
   </div>
 </div>
 
-<!-- Toast -->
+<!-- Toast notification (shared) -->
 <div class="toast" id="toast"></div>
 
+<!-- ═══════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════ -->
 <header>
   <h1>LEAD DASHBOARD</h1>
-  <span>Hannover &middot; Handwerker &middot; 2026</span>
-  <button class="csv-name" id="csv-filename" title="Neue CSV laden" onclick="document.getElementById('csv-input2').click()" style="margin-left:8px">&#8211; keine Datei &#8211;</button>
-  <input type="file" id="csv-input2" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+  <span class="subtitle">Hannover · Handwerker · 2026</span>
+  <!-- Click to reload a new CSV file -->
+  <button class="csv-badge" id="csv-badge" title="Neue CSV laden"
+          onclick="document.getElementById('csv-input2').click()">
+    – keine Datei –
+  </button>
+  <input type="file" id="csv-input2" accept=".csv" style="display:none"
+         onchange="handleFile(this.files[0])">
 </header>
 
+<!-- ═══════════════════════════════════════════
+     STATS BAR – always visible, always current
+═══════════════════════════════════════════ -->
 <div class="stats-bar">
   <div class="stat">
     <div class="stat-num" id="stat-total">–</div>
@@ -498,7 +681,7 @@
   </div>
   <div class="stat">
     <div class="stat-num hot-num" id="stat-hot">–</div>
-    <div class="stat-label">🔥 Heiß (≥70)</div>
+    <div class="stat-label">🔥 Heiß ≥70</div>
   </div>
   <div class="stat">
     <div class="stat-num warm-num" id="stat-no-site">–</div>
@@ -510,524 +693,864 @@
   </div>
   <div class="stat">
     <div class="stat-num green-num" id="stat-called">–</div>
-    <div class="stat-label">✓ Angerufen</div>
+    <div class="stat-label">✓ Erledigt</div>
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════
+     CONTROLS BAR – filter, sort, export
+═══════════════════════════════════════════ -->
 <div class="controls">
-  <input type="text" id="search" placeholder="Firma suchen...">
+  <input type="text" id="search" placeholder="Firma / Telefon suchen…">
+
   <select id="filter-branche">
     <option value="">Alle Branchen</option>
   </select>
+
   <select id="filter-status">
-    <option value="">Alle Status</option>
+    <option value="">Alle Website-Status</option>
     <option value="no-site">Ohne Website</option>
     <option value="broken">Website kaputt</option>
     <option value="old">Website alt (5+ J.)</option>
     <option value="ok">Website OK</option>
   </select>
+
+  <!-- Toggle: show only hot leads (score ≥ 70) -->
   <button class="btn" id="btn-hot" onclick="toggleHot()">🔥 Nur Heiße</button>
 
-  <!-- Duplikat-Gruppe -->
-  <div class="dupe-group">
-    <button class="btn" id="btn-dupes-show" onclick="toggleShowDupes()" title="Nur Duplikate anzeigen">⊗ Duplikate</button>
-    <button class="btn" id="btn-dupes-hide" onclick="toggleHideDupes()" title="Alle Duplikate ausblenden">⊘ Ausblenden</button>
-  </div>
+  <!-- Toggle: hide already-called leads from the list -->
+  <button class="btn" id="btn-hide-called" onclick="toggleHideCalled()">
+    ✓ Erledigte aus
+  </button>
 
-  <!-- Angerufen filter -->
-  <button class="btn" id="btn-hide-called" onclick="toggleHideCalled()" title="Bereits angerufene ausblenden">✓ Erledigte aus</button>
-
+  <!-- Export only the currently visible (filtered) leads, all original columns -->
   <button class="btn btn-export" onclick="exportCSV()">⬇ CSV Export</button>
 </div>
 
-<div class="progress-indicator">
-  <span id="result-count">Lade Daten...</span>
+<!-- Result count + current sort indicator -->
+<div class="info-bar">
+  <span id="result-count">Lade Daten…</span>
   <span id="sort-info">Sortiert nach Score ↓</span>
 </div>
 
+<!-- ═══════════════════════════════════════════
+     MAIN TABLE
+═══════════════════════════════════════════ -->
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
+        <!-- Checkbox column: click to mark called/uncalled without opening detail -->
         <th class="no-sort" title="Angerufen markieren">✓</th>
-        <th onclick="sortBy('score')" class="sort-active">Score <span class="sort-arrow">↓</span></th>
-        <th onclick="sortBy('name')">Firma <span class="sort-arrow">↕</span></th>
-        <th onclick="sortBy('branche')">Branche <span class="sort-arrow">↕</span></th>
-        <th>Website-Status</th>
-        <th onclick="sortBy('google_bewertungen')">Bewertungen <span class="sort-arrow">↕</span></th>
-        <th>Telefon</th>
-        <th onclick="sortBy('website_alter_jahre')">Alter Site <span class="sort-arrow">↕</span></th>
+
+        <th onclick="sortBy('score')" class="sort-active" id="th-score">
+          Score <span class="sort-arrow">↓</span>
+        </th>
+        <th onclick="sortBy('name')" id="th-name">
+          Firma <span class="sort-arrow">↕</span>
+        </th>
+        <th onclick="sortBy('branche')" id="th-branche">
+          Branche <span class="sort-arrow">↕</span>
+        </th>
+        <th class="no-sort">Website</th>
+        <th class="no-sort">Telefon</th>
+        <th onclick="sortBy('website_alter_jahre')" id="th-age">
+          Site-Alter <span class="sort-arrow">↕</span>
+        </th>
+        <th onclick="sortBy('google_rating')" id="th-rating">
+          ★ Rating <span class="sort-arrow">↕</span>
+        </th>
+        <th onclick="sortBy('google_bewertungen')" id="th-reviews">
+          Reviews <span class="sort-arrow">↕</span>
+        </th>
       </tr>
     </thead>
     <tbody id="table-body"></tbody>
   </table>
-  <div id="empty-state" class="empty-state" style="display:none">Keine Leads gefunden.</div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    Keine Leads gefunden.
+  </div>
 </div>
 
+<!-- ═══════════════════════════════════════════
+     DETAIL PANEL
+     Slides in from right when a row is clicked.
+     Primary purpose: prepare for the phone call.
+═══════════════════════════════════════════ -->
 <div class="detail-panel" id="detail-panel">
-  <button class="detail-close" onclick="closeDetail()">×</button>
-  <div id="detail-content"></div>
+  <!-- populated by openDetail() -->
 </div>
 
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════ -->
 <script>
-  // ─── CSV PARSER ───
-  function parseCSV(text) {
-    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
-    if (lines.length < 2) return [];
 
-    const sep = lines[0].includes(';') ? ';' : ',';
+// ─────────────────────────────────────────────
+// STATE
+// These variables hold the entire app state.
+// ─────────────────────────────────────────────
 
-    function parseLine(line) {
-      const fields = [];
-      let cur = '', inQ = false;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (c === '"') {
-          if (inQ && line[i+1] === '"') { cur += '"'; i++; }
-          else inQ = !inQ;
-        } else if (c === sep && !inQ) {
-          fields.push(cur.trim()); cur = '';
-        } else {
-          cur += c;
-        }
+let allLeads   = [];      // all leads after deduplication
+let filtered   = [];      // currently visible subset (after filters + sort)
+let sortCol    = 'score'; // active sort column
+let sortDir    = -1;      // -1 = descending, +1 = ascending
+let showHotOnly  = false; // filter: score ≥ 70 only
+let hideCalled   = false; // filter: hide already-called leads
+let selectedId   = null;  // id of the lead open in the detail panel
+
+
+// ─────────────────────────────────────────────
+// TOAST
+// Brief notification shown bottom-center.
+// ─────────────────────────────────────────────
+
+let toastTimer;
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+
+// ─────────────────────────────────────────────
+// CSV PARSER
+// Handles both comma- and semicolon-separated
+// files, including quoted fields with embedded
+// separators and escaped quotes ("").
+// ─────────────────────────────────────────────
+
+function parseCSV(text) {
+  // Normalise line endings
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+  if (lines.length < 2) return [];
+
+  // Auto-detect separator: semicolon (Python output) or comma
+  const sep = lines[0].includes(';') ? ';' : ',';
+
+  // Parse a single CSV line respecting quoted fields
+  function parseLine(line) {
+    const fields = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQ && line[i + 1] === '"') { cur += '"'; i++; } // escaped quote
+        else inQ = !inQ;
+      } else if (c === sep && !inQ) {
+        fields.push(cur.trim()); cur = '';
+      } else {
+        cur += c;
       }
-      fields.push(cur.trim());
-      return fields;
+    }
+    fields.push(cur.trim());
+    return fields;
+  }
+
+  // Normalise header names: lowercase, only alphanumeric + underscores
+  const headers = parseLine(lines[0]).map(h =>
+    h.toLowerCase().replace(/[^a-z0-9_]/g, '_')
+  );
+
+  // Parse each data row into an object; enrich with derived fields
+  return lines.slice(1).filter(l => l.trim()).map((line, idx) => {
+    const vals = parseLine(line);
+    const obj  = { _rowId: idx }; // internal id, not exported
+
+    // Map raw CSV values onto object using header names
+    headers.forEach((h, i) => { obj[h] = vals[i] ?? ''; });
+
+    // ── Field aliases (support slight column name variations) ──
+    obj.name    = obj.name    || obj.firma    || obj.company       || '(Unbekannt)';
+    obj.branche = obj.branche || obj.kategorie|| obj.category      || '';
+    obj.telefon = obj.telefon || obj.tel      || obj.phone         || obj.telefonnummer || '';
+    obj.adresse = obj.adresse || obj.address  || obj.anschrift     || '';
+    obj.email   = obj.email   || '';
+    obj.website = obj.website || '';
+
+    // ── Numeric coercions ──
+    obj.score               = parseInt(obj.score)               || 0;
+    obj.google_rating       = parseFloat(obj.google_rating)     || 0;
+    obj.google_bewertungen  = parseInt(obj.google_bewertungen)  || 0;
+    obj.website_alter_jahre = parseInt(obj.website_alter_jahre) || null;
+    obj.ladezeit_ms         = parseInt(obj.ladezeit_ms)         || null;
+
+    // ── Boolean coercions ──
+    const truthy = v => v === 'True' || v === 'true' || v === '1';
+    obj.hat_ssl             = truthy(obj.hat_ssl);
+    obj.hat_website         = truthy(obj.hat_website) || !!obj.website;
+    obj.website_erreichbar  = truthy(obj.website_erreichbar);
+    obj.ist_mobilfreundlich = obj.ist_mobilfreundlich === ''
+      ? null : truthy(obj.ist_mobilfreundlich);
+
+    // ── Derived website status (used for badge + filter) ──
+    // Falls back gracefully if hat_website/website_erreichbar are missing
+    if (!obj.website_status) {
+      if (!obj.hat_website)          obj.website_status = 'no-site';
+      else if (!obj.website_erreichbar) obj.website_status = 'broken';
+      else if (obj.website_alter_jahre >= 5) obj.website_status = 'old';
+      else                            obj.website_status = 'ok';
     }
 
-    const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+    // ── Score reasons: split pipe-delimited string into array ──
+    obj.score_gruende = typeof obj.score_gruende === 'string'
+      ? (obj.score_gruende ? obj.score_gruende.split(' | ') : [])
+      : [];
 
-    return lines.slice(1).filter(l => l.trim()).map((line, idx) => {
-      const vals = parseLine(line);
-      const obj = { id: idx };
-      headers.forEach((h, i) => { obj[h] = vals[i] ?? ''; });
+    // ── "Angerufen" state: derived from status column or explicit field ──
+    // When exporting and re-importing, the status column carries the called state.
+    obj.status    = obj.status || 'neu';
+    obj.angerufen = obj.status === 'angerufen'
+      || obj.angerufen === 'true' || obj.angerufen === '1' || obj.angerufen === 'True';
 
-      obj.name         = obj.name || obj.firma || obj.company || '(Unbekannt)';
-      obj.branche      = obj.branche || obj.kategorie || obj.category || '';
-      obj.telefon      = obj.telefon || obj.tel || obj.phone || obj.telefonnummer || '';
-      obj.adresse      = obj.adresse || obj.address || obj.anschrift || '';
-      obj.score        = parseInt(obj.score) || 0;
-      obj.google_rating       = parseFloat(obj.google_rating) || 0;
-      obj.google_bewertungen  = parseInt(obj.google_bewertungen) || 0;
-      obj.website_alter_jahre = parseInt(obj.website_alter_jahre) || null;
-      obj.ladezeit_ms         = parseInt(obj.ladezeit_ms) || null;
-      obj.hat_ssl             = obj.hat_ssl === 'True' || obj.hat_ssl === 'true' || obj.hat_ssl === '1';
-      obj.ist_mobilfreundlich = obj.ist_mobilfreundlich === '' ? null
-                                : (obj.ist_mobilfreundlich === 'True' || obj.ist_mobilfreundlich === 'true' || obj.ist_mobilfreundlich === '1');
+    return obj;
+  });
+}
 
-      // Status: aus CSV übernehmen (inkl. schon gespeichertes "angerufen")
-      obj.status = obj.status || 'neu';
-      obj.angerufen = (obj.status === 'angerufen') || (obj.angerufen === 'true' || obj.angerufen === '1' || obj.angerufen === 'True');
 
-      if (!obj.website_status) {
-        const hatSite = obj.hat_website === 'True' || obj.hat_website === 'true' || obj.hat_website === '1' || !!obj.website;
-        const erreichbar = obj.website_erreichbar === 'True' || obj.website_erreichbar === 'true';
-        if (!hatSite) obj.website_status = 'no-site';
-        else if (!erreichbar) obj.website_status = 'broken';
-        else if (obj.website_alter_jahre >= 5) obj.website_status = 'old';
-        else obj.website_status = 'ok';
-      }
+// ─────────────────────────────────────────────
+// DEDUPLICATION
+// Removes duplicate entries based on normalised
+// phone number. The entry with the HIGHER score
+// is kept; ties keep the first occurrence.
+// Phone-based dedup is reliable because two
+// separate businesses won't share a number,
+// whereas name matching has false positives.
+// ─────────────────────────────────────────────
 
-      if (typeof obj.score_gruende === 'string') {
-        obj.score_gruende = obj.score_gruende ? obj.score_gruende.split(' | ') : [];
-      }
-
-      return obj;
-    });
+function deduplicateByPhone(leads) {
+  // Normalise phone: digits only, last 9 digits (handles local vs. full format)
+  function normTel(s) {
+    const digits = (s || '').replace(/[^0-9]/g, '');
+    return digits.length >= 6 ? digits.slice(-9) : null;
   }
 
-  // ─── STATE ───
-  let allLeads = [];
-  let filtered = [];
-  let sortCol = 'score';
-  let sortDir = -1;
-  let showHotOnly    = false;
-  let showDupesOnly  = false;
-  let hideDupes      = false;   // NEU: Duplikate ausblenden
-  let hideCalled     = false;   // NEU: Angerufene ausblenden
-  let selectedId     = null;
-  let dupeIds        = new Set();
+  const seen = new Map(); // normalised phone → best lead so far
 
-  // ─── TOAST ───
-  let toastTimer;
-  function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
-  }
+  leads.forEach(l => {
+    const key = normTel(l.telefon);
 
-  // ─── DUPLIKAT-ERKENNUNG ───
-  function findDupeIds(leads) {
-    const dupeIds = new Set();
-
-    function normName(s) {
-      return (s || '').toLowerCase()
-        .replace(/gmbh|gbr|kg|ohg|ag|e\.k\.|ek|&|und|meisterbetrieb|fachbetrieb|service|betrieb/gi, '')
-        .replace(/[^a-z0-9äöü]/g, '').trim();
-    }
-
-    function normTel(s) {
-      return (s || '').replace(/[^0-9]/g, '').slice(-9);
-    }
-
-    const nameMap = {};
-    leads.forEach(l => {
-      const key = normName(l.name);
-      if (key.length < 4) return;
-      if (!nameMap[key]) nameMap[key] = [];
-      nameMap[key].push(l.id);
-    });
-    Object.values(nameMap).forEach(ids => {
-      if (ids.length > 1) ids.forEach(id => dupeIds.add(id));
-    });
-
-    const telMap = {};
-    leads.forEach(l => {
-      const key = normTel(l.telefon);
-      if (key.length < 6) return;
-      if (!telMap[key]) telMap[key] = [];
-      telMap[key].push(l.id);
-    });
-    Object.values(telMap).forEach(ids => {
-      if (ids.length > 1) ids.forEach(id => dupeIds.add(id));
-    });
-
-    return dupeIds;
-  }
-
-  // ─── STATS ───
-  function updateStats() {
-    document.getElementById('stat-total').textContent   = allLeads.length;
-    document.getElementById('stat-hot').textContent     = allLeads.filter(l => l.score >= 70).length;
-    document.getElementById('stat-no-site').textContent = allLeads.filter(l => l.website_status === 'no-site').length;
-    document.getElementById('stat-old').textContent     = allLeads.filter(l => l.website_status === 'old').length;
-    document.getElementById('stat-called').textContent  = allLeads.filter(l => l.angerufen).length;
-
-    const dupBtn = document.getElementById('btn-dupes-show');
-    const hideBtn = document.getElementById('btn-dupes-hide');
-    if (dupeIds.size > 0) {
-      dupBtn.textContent  = `⊗ Duplikate (${dupeIds.size})`;
-      hideBtn.textContent = `⊘ Ausblenden (${dupeIds.size})`;
-    }
-  }
-
-  // ─── FILTER ───
-  function applyFilters() {
-    const search  = document.getElementById('search').value.toLowerCase();
-    const branche = document.getElementById('filter-branche').value;
-    const status  = document.getElementById('filter-status').value;
-
-    filtered = allLeads.filter(l => {
-      if (search && !l.name.toLowerCase().includes(search) &&
-          !l.branche.toLowerCase().includes(search) &&
-          !l.telefon.includes(search)) return false;
-      if (branche && l.branche !== branche) return false;
-      if (status  && l.website_status !== status) return false;
-      if (showHotOnly   && l.score < 70) return false;
-      if (showDupesOnly && !dupeIds.has(l.id)) return false;
-      if (hideDupes     && dupeIds.has(l.id)) return false;   // NEU
-      if (hideCalled    && l.angerufen) return false;          // NEU
-      return true;
-    });
-
-    renderTable();
-  }
-
-  function toggleHot() {
-    showHotOnly = !showHotOnly;
-    document.getElementById('btn-hot').classList.toggle('active', showHotOnly);
-    applyFilters();
-  }
-
-  // Nur Duplikate anzeigen
-  function toggleShowDupes() {
-    showDupesOnly = !showDupesOnly;
-    if (showDupesOnly) hideDupes = false;   // schließt sich gegenseitig aus
-    document.getElementById('btn-dupes-show').classList.toggle('active-purple', showDupesOnly);
-    document.getElementById('btn-dupes-hide').classList.remove('active-purple');
-    applyFilters();
-  }
-
-  // Alle Duplikate ausblenden (NEU)
-  function toggleHideDupes() {
-    hideDupes = !hideDupes;
-    if (hideDupes) showDupesOnly = false;   // schließt sich gegenseitig aus
-    document.getElementById('btn-dupes-hide').classList.toggle('active-purple', hideDupes);
-    document.getElementById('btn-dupes-show').classList.remove('active-purple');
-    applyFilters();
-  }
-
-  // Angerufene ausblenden (NEU)
-  function toggleHideCalled() {
-    hideCalled = !hideCalled;
-    document.getElementById('btn-hide-called').classList.toggle('active-green', hideCalled);
-    applyFilters();
-  }
-
-  // ─── SORT ───
-  function sortBy(col) {
-    if (sortCol === col) sortDir *= -1;
-    else { sortCol = col; sortDir = -1; }
-
-    document.querySelectorAll('thead th').forEach(th => th.classList.remove('sort-active'));
-    filtered.sort((a, b) => {
-      const av = a[col] ?? -1, bv = b[col] ?? -1;
-      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
-    });
-    document.getElementById('sort-info').textContent = `Sortiert nach ${col} ${sortDir === -1 ? '↓' : '↑'}`;
-    renderTable();
-  }
-
-  // ─── CHECKBOX: ANGERUFEN TOGGLE ───
-  function toggleAngerufen(id, event) {
-    event.stopPropagation();  // Verhindert Öffnen des Detail-Panels
-    const lead = allLeads.find(l => l.id === id);
-    if (!lead) return;
-    lead.angerufen = !lead.angerufen;
-    lead.status    = lead.angerufen ? 'angerufen' : 'neu';
-    updateStats();
-    renderTable();
-
-    // Wenn Detail-Panel diesen Lead zeigt, aktualisieren
-    if (selectedId === id) openDetail(id);
-
-    if (lead.angerufen) {
-      showToast(`✓ ${lead.name} als angerufen markiert`);
-    }
-  }
-
-  // ─── TABLE ───
-  function websiteBadge(l) {
-    if (l.website_status === 'no-site') return '<span class="badge badge-no-site">KEINE</span>';
-    if (l.website_status === 'broken')  return '<span class="badge badge-broken">KAPUTT</span>';
-    if (l.website_status === 'old')     return `<span class="badge badge-old">ALT ${l.website_alter_jahre}J</span>`;
-    return '<span class="badge badge-ok">OK</span>';
-  }
-
-  function scoreClass(s) {
-    if (s >= 70) return 'score-hot';
-    if (s >= 40) return 'score-warm';
-    return 'score-cold';
-  }
-
-  function renderTable() {
-    const tbody = document.getElementById('table-body');
-    document.getElementById('result-count').textContent = `${filtered.length} Leads`;
-
-    if (filtered.length === 0) {
-      tbody.innerHTML = '';
-      document.getElementById('empty-state').style.display = 'block';
+    if (!key) {
+      // No usable phone number – keep the lead as-is (can't deduplicate)
+      l._keepAlways = true;
       return;
     }
-    document.getElementById('empty-state').style.display = 'none';
 
-    tbody.innerHTML = filtered.map(l => `
-      <tr onclick="openDetail(${l.id})"
-          class="${l.angerufen ? 'angerufen' : ''} ${dupeIds.has(l.id) ? 'dupe-row' : ''}"
-          style="${l.id === selectedId ? 'background:var(--surface)' : ''}">
-        <td class="check-cell" onclick="toggleAngerufen(${l.id}, event)">
-          <input type="checkbox"
-                 class="call-checkbox"
+    if (!seen.has(key)) {
+      seen.set(key, l);
+    } else {
+      // Keep the one with the higher score
+      if (l.score > seen.get(key).score) {
+        seen.set(key, l);
+      }
+    }
+  });
+
+  // Return: entries that won their phone-key slot + entries without a phone
+  return leads.filter(l => l._keepAlways || seen.get(
+    (l.telefon.replace(/[^0-9]/g, '').slice(-9)) || '__none__'
+  ) === l);
+}
+
+
+// ─────────────────────────────────────────────
+// LOAD LEADS
+// Called once a CSV is parsed. Deduplicates,
+// sorts, populates branch filter, renders.
+// ─────────────────────────────────────────────
+
+function loadLeads(raw) {
+  // 1. Deduplicate before doing anything else
+  const deduped = deduplicateByPhone(raw);
+
+  const removed = raw.length - deduped.length;
+  if (removed > 0) {
+    showToast(`${removed} Duplikat${removed > 1 ? 'e' : ''} entfernt (gleiche Rufnummer)`);
+  }
+
+  // 2. Sort by score descending as the default view
+  allLeads = deduped.sort((a, b) => b.score - a.score);
+  filtered = [...allLeads];
+
+  // 3. Populate branch dropdown from actual data
+  const sel = document.getElementById('filter-branche');
+  sel.innerHTML = '<option value="">Alle Branchen</option>';
+  const branches = [...new Set(allLeads.map(l => l.branche).filter(Boolean))].sort();
+  branches.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b; opt.textContent = b;
+    sel.appendChild(opt);
+  });
+
+  // 4. Render everything
+  updateStats();
+  renderTable();
+
+  // 5. Notify if previously-called leads were re-imported
+  const calledCount = allLeads.filter(l => l.angerufen).length;
+  if (calledCount > 0) {
+    showToast(`${calledCount} bereits erledigte Leads aus CSV übernommen`);
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// STATS BAR UPDATE
+// Reflects allLeads (not filtered) so numbers
+// are stable regardless of active filters.
+// ─────────────────────────────────────────────
+
+function updateStats() {
+  document.getElementById('stat-total').textContent   = allLeads.length;
+  document.getElementById('stat-hot').textContent     = allLeads.filter(l => l.score >= 70).length;
+  document.getElementById('stat-no-site').textContent = allLeads.filter(l => l.website_status === 'no-site').length;
+  document.getElementById('stat-old').textContent     = allLeads.filter(l => l.website_status === 'old').length;
+  document.getElementById('stat-called').textContent  = allLeads.filter(l => l.angerufen).length;
+}
+
+
+// ─────────────────────────────────────────────
+// FILTERS
+// Re-computes `filtered` from `allLeads` and
+// re-renders the table. Called on every input
+// change and after any state toggle.
+// ─────────────────────────────────────────────
+
+function applyFilters() {
+  const search  = document.getElementById('search').value.toLowerCase();
+  const branche = document.getElementById('filter-branche').value;
+  const status  = document.getElementById('filter-status').value;
+
+  filtered = allLeads.filter(l => {
+    // Text search across name, branch, and phone
+    if (search &&
+        !l.name.toLowerCase().includes(search) &&
+        !l.branche.toLowerCase().includes(search) &&
+        !l.telefon.includes(search)) return false;
+
+    if (branche && l.branche !== branche) return false;
+    if (status  && l.website_status !== status) return false;
+    if (showHotOnly && l.score < 70)  return false;
+    if (hideCalled  && l.angerufen)   return false;
+    return true;
+  });
+
+  // Re-apply current sort to the new filtered set
+  sortFiltered();
+  renderTable();
+}
+
+function toggleHot() {
+  showHotOnly = !showHotOnly;
+  document.getElementById('btn-hot').classList.toggle('active', showHotOnly);
+  applyFilters();
+}
+
+function toggleHideCalled() {
+  hideCalled = !hideCalled;
+  document.getElementById('btn-hide-called').classList.toggle('active-green', hideCalled);
+  applyFilters();
+}
+
+
+// ─────────────────────────────────────────────
+// SORT
+// Updates sort state and re-renders.
+// Clicking the same column reverses direction.
+// ─────────────────────────────────────────────
+
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = -1; }
+
+  sortFiltered();
+  updateSortHeaders();
+  document.getElementById('sort-info').textContent =
+    `Sortiert nach ${col} ${sortDir === -1 ? '↓' : '↑'}`;
+  renderTable();
+}
+
+// Sort `filtered` in-place using current sortCol / sortDir
+function sortFiltered() {
+  filtered.sort((a, b) => {
+    let av = a[sortCol], bv = b[sortCol];
+    // Nulls always sink to the bottom
+    if (av == null) av = sortDir === -1 ? -Infinity : Infinity;
+    if (bv == null) bv = sortDir === -1 ? -Infinity : Infinity;
+    return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+  });
+}
+
+// Highlight the active sort column header
+function updateSortHeaders() {
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.remove('sort-active');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = '↕';
+  });
+  const activeId = `th-${sortCol}`;
+  const activeEl = document.getElementById(activeId);
+  if (activeEl) {
+    activeEl.classList.add('sort-active');
+    const arrow = activeEl.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = sortDir === -1 ? '↓' : '↑';
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// MARK AS CALLED (checkbox in table row)
+// Stops event so the row-click (openDetail)
+// doesn't fire simultaneously.
+// ─────────────────────────────────────────────
+
+function toggleCalled(rowId, event) {
+  event.stopPropagation();
+
+  const lead = allLeads.find(l => l._rowId === rowId);
+  if (!lead) return;
+
+  lead.angerufen = !lead.angerufen;
+  lead.status    = lead.angerufen ? 'angerufen' : 'neu';
+
+  updateStats();
+  renderTable();
+
+  // Keep detail panel in sync if it's showing this lead
+  if (selectedId === rowId) openDetail(rowId);
+
+  if (lead.angerufen) showToast(`✓ ${lead.name} als erledigt markiert`);
+}
+
+
+// ─────────────────────────────────────────────
+// HELPER: website status badge HTML
+// ─────────────────────────────────────────────
+
+function websiteBadge(l) {
+  if (l.website_status === 'no-site') return '<span class="badge badge-no-site">KEINE</span>';
+  if (l.website_status === 'broken')  return '<span class="badge badge-broken">KAPUTT</span>';
+  if (l.website_status === 'old')     return `<span class="badge badge-old">ALT&nbsp;${l.website_alter_jahre}J</span>`;
+  return '<span class="badge badge-ok">OK</span>';
+}
+
+// Returns CSS class for score pill based on tier
+function scoreClass(s) {
+  if (s >= 70) return 'score-hot';
+  if (s >= 40) return 'score-warm';
+  return 'score-cold';
+}
+
+// Colour for the big score number in the detail panel
+function scoreColor(s) {
+  if (s >= 70) return 'var(--hot)';
+  if (s >= 40) return 'var(--warm)';
+  return 'var(--cold)';
+}
+
+
+// ─────────────────────────────────────────────
+// RENDER TABLE
+// Full re-render of tbody from `filtered`.
+// Keeps detail panel highlight in sync.
+// ─────────────────────────────────────────────
+
+function renderTable() {
+  const tbody = document.getElementById('table-body');
+  document.getElementById('result-count').textContent = `${filtered.length} Leads`;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('empty-state').style.display = 'block';
+    return;
+  }
+  document.getElementById('empty-state').style.display = 'none';
+
+  tbody.innerHTML = filtered.map(l => {
+    // Website cell: show link if available, otherwise badge
+    const siteCell = l.website
+      ? `<a class="site-link" href="${l.website}" target="_blank"
+             onclick="event.stopPropagation()"
+             title="${l.website}">${l.website.replace(/^https?:\/\/(www\.)?/, '')}</a>`
+      : websiteBadge(l);
+
+    // Age cell
+    const ageCell = l.website_alter_jahre != null
+      ? `<span style="font-family:var(--mono);font-size:12px">${l.website_alter_jahre}&nbsp;J.</span>`
+      : '<span style="color:var(--muted)">—</span>';
+
+    return `
+      <tr onclick="openDetail(${l._rowId})"
+          class="${l.angerufen ? 'called-row' : ''}"
+          style="${l._rowId === selectedId ? 'background:var(--surface2)' : ''}">
+
+        <!-- Checkbox: marks lead as called without opening detail panel -->
+        <td class="check-cell" onclick="toggleCalled(${l._rowId}, event)">
+          <input type="checkbox" class="call-checkbox"
                  ${l.angerufen ? 'checked' : ''}
-                 onclick="toggleAngerufen(${l.id}, event)"
-                 title="${l.angerufen ? 'Als nicht angerufen markieren' : 'Als angerufen markieren'}">
+                 onclick="toggleCalled(${l._rowId}, event)"
+                 title="${l.angerufen ? 'Als unerledigt markieren' : 'Als erledigt markieren'}">
         </td>
+
+        <!-- Score pill -->
         <td><span class="score-pill ${scoreClass(l.score)}">${l.score}</span></td>
+
+        <!-- Company name (+ called badge if applicable) -->
         <td>
           <div class="firma-name">
             ${l.name}
-            ${dupeIds.has(l.id) ? ' <span class="badge badge-dupe">DUPLIKAT</span>' : ''}
-            ${l.angerufen ? ' <span class="badge badge-angerufen">ANGERUFEN</span>' : ''}
+            ${l.angerufen ? ' <span class="badge badge-called">ERLEDIGT</span>' : ''}
           </div>
         </td>
-        <td><span class="branche">${l.branche}</span></td>
-        <td>${websiteBadge(l)}</td>
+
+        <!-- Branch -->
+        <td style="font-size:12px;color:var(--muted2)">${l.branche}</td>
+
+        <!-- Website: link or status badge -->
+        <td>${siteCell}</td>
+
+        <!-- Phone – the most important piece of call-prep info -->
+        <td class="tel-cell">${l.telefon || '<span style="color:var(--muted)">—</span>'}</td>
+
+        <!-- Site age -->
+        <td>${ageCell}</td>
+
+        <!-- Google rating -->
         <td style="font-family:var(--mono);font-size:12px">
-          ★ ${l.google_rating} <span style="color:var(--muted)">(${l.google_bewertungen})</span>
+          ${l.google_rating ? `★&nbsp;${l.google_rating.toFixed(1)}` : '<span style="color:var(--muted)">—</span>'}
         </td>
-        <td><span class="tel">${l.telefon}</span></td>
-        <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">
-          ${l.website_alter_jahre ? l.website_alter_jahre + ' J.' : '—'}
+
+        <!-- Review count -->
+        <td style="font-family:var(--mono);font-size:12px;color:var(--muted2)">
+          ${l.google_bewertungen || '—'}
         </td>
-      </tr>
-    `).join('');
-  }
+      </tr>`;
+  }).join('');
+}
 
-  // ─── DETAIL PANEL ───
-  function openDetail(id) {
-    const l = allLeads.find(x => x.id === id);
-    if (!l) return;
-    selectedId = id;
 
-    const scoreColor = l.score >= 70 ? 'var(--hot)' : l.score >= 40 ? 'var(--warm)' : 'var(--cold)';
-    const barColor   = l.score >= 70 ? '#ff4d2e' : l.score >= 40 ? '#f5a623' : '#4a9eff';
+// ─────────────────────────────────────────────
+// DETAIL PANEL
+// Opens on row click. Designed as a "call sheet":
+// most important info first, then technical detail.
+// ─────────────────────────────────────────────
 
-    document.getElementById('detail-content').innerHTML = `
-      <div class="detail-title">${l.name}${l.angerufen ? ' <span class="badge badge-angerufen" style="font-size:10px">✓ ANGERUFEN</span>' : ''}</div>
+function openDetail(rowId) {
+  const l = allLeads.find(x => x._rowId === rowId);
+  if (!l) return;
+  selectedId = rowId;
 
-      <div class="detail-section">
-        <h3>Score</h3>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
-          <span style="font-family:var(--mono);font-size:32px;font-weight:500;color:${scoreColor}">${l.score}</span>
-          <span style="color:var(--muted);font-size:13px">/ 100</span>
+  const panel = document.getElementById('detail-panel');
+
+  // ── Build website row (link if available) ──
+  const websiteRow = l.website
+    ? `<div class="detail-row">
+         <span class="dk">URL</span>
+         <a class="website-link" href="${l.website}" target="_blank"
+            title="${l.website}">${l.website.replace(/^https?:\/\//, '')}</a>
+       </div>`
+    : '';
+
+  // ── Score reason list ──
+  const reasonsHtml = l.score_gruende.length
+    ? l.score_gruende.map(g => `<div class="score-reason-item">${g}</div>`).join('')
+    : '<div class="score-reason-item" style="color:var(--muted)">Keine Gründe erfasst</div>';
+
+  // ── Email row ──
+  const emailRow = l.email
+    ? `<div class="detail-row"><span class="dk">E-Mail</span>
+         <a href="mailto:${l.email}" class="dv" style="color:var(--cold)">${l.email}</a>
+       </div>`
+    : '';
+
+  // ── Wayback date row ──
+  const waybackRow = l.wayback_datum
+    ? `<div class="detail-row"><span class="dk">Wayback-Datum</span>
+         <span class="dv">${l.wayback_datum}</span></div>`
+    : '';
+
+  // ── Mobile friendliness ──
+  const mobilRow = l.ist_mobilfreundlich !== null
+    ? `<div class="detail-row"><span class="dk">Mobilfreundlich</span>
+         <span class="dv">${l.ist_mobilfreundlich ? '✓ Ja' : '✗ Nein'}</span></div>`
+    : '';
+
+  panel.innerHTML = `
+
+    <!-- Header: name + close button -->
+    <div class="detail-header">
+      <div class="detail-name">
+        ${l.name}
+        ${l.angerufen ? '<span class="badge badge-called" style="margin-left:6px">✓ ERLEDIGT</span>' : ''}
+      </div>
+      <button class="detail-close" onclick="closeDetail()">×</button>
+    </div>
+
+    <!-- Score block: big number + bar + reasons why this is a good lead -->
+    <div class="detail-score-block">
+      <div>
+        <div class="big-score" style="color:${scoreColor(l.score)}">${l.score}</div>
+        <div style="color:var(--muted);font-size:11px;font-family:var(--mono);margin-top:2px">/ 100</div>
+        <div class="score-bar-bg" style="margin-top:8px;width:80px">
+          <div class="score-bar-fill"
+               style="width:${l.score}%;background:${scoreColor(l.score)}"></div>
         </div>
-        <div class="score-bar-wrap">
-          <div class="score-bar-bg">
-            <div class="score-bar-fill" style="width:${l.score}%;background:${barColor}"></div>
-          </div>
-        </div>
-        <ul class="reason-list" style="margin-top:10px">
-          ${(l.score_gruende || []).map(g => `<li>${g}</li>`).join('')}
-        </ul>
       </div>
+      <div class="score-reasons">${reasonsHtml}</div>
+    </div>
 
-      <div class="detail-section">
-        <h3>Kontakt</h3>
-        <div class="detail-row"><span class="detail-key">Telefon</span><span class="detail-val">${l.telefon}</span></div>
-        <div class="detail-row"><span class="detail-key">Adresse</span><span class="detail-val" style="font-size:11px">${l.adresse}</span></div>
-        <div class="detail-row"><span class="detail-key">Branche</span><span class="detail-val">${l.branche}</span></div>
+    <!-- CALL BLOCK: phone number + action buttons (most prominent section) -->
+    <div class="detail-call-block">
+      <div class="detail-phone">
+        <span>📞</span>
+        ${l.telefon
+          ? `<a href="tel:${l.telefon}" style="color:inherit;text-decoration:none">${l.telefon}</a>`
+          : '<span class="no-phone">Keine Telefonnummer</span>'}
       </div>
-
-      <div class="detail-section">
-        <h3>Website</h3>
-        <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">${websiteBadge(l)}</span></div>
-        ${l.website_alter_jahre ? `<div class="detail-row"><span class="detail-key">Alter</span><span class="detail-val">${l.website_alter_jahre} Jahre</span></div>` : ''}
-        ${l.ladezeit_ms ? `<div class="detail-row"><span class="detail-key">Ladezeit</span><span class="detail-val">${l.ladezeit_ms} ms</span></div>` : ''}
-        <div class="detail-row"><span class="detail-key">HTTPS</span><span class="detail-val">${l.hat_ssl ? '✓ Ja' : '✗ Nein'}</span></div>
-        ${l.ist_mobilfreundlich !== null ? `<div class="detail-row"><span class="detail-key">Mobil</span><span class="detail-val">${l.ist_mobilfreundlich ? '✓ Ja' : '✗ Nein'}</span></div>` : ''}
-      </div>
-
-      <div class="detail-section">
-        <h3>Google</h3>
-        <div class="detail-row"><span class="detail-key">Bewertung</span><span class="detail-val">★ ${l.google_rating}</span></div>
-        <div class="detail-row"><span class="detail-key">Anzahl</span><span class="detail-val">${l.google_bewertungen}</span></div>
-      </div>
-
-      <div class="action-btns">
-        <button class="action-btn btn-call ${l.angerufen ? 'called' : ''}"
-                onclick="toggleAngerufenDetail(${l.id})">
-          ${l.angerufen ? '✓ Angerufen' : '📞 Anrufen'}
+      <div class="call-actions">
+        <!-- Toggle called/uncalled state -->
+        <button class="btn-big-call ${l.angerufen ? 'was-called' : ''}"
+                onclick="toggleCalledDetail(${l._rowId})">
+          ${l.angerufen ? '✓ Als unerledigt markieren' : '📞 Als erledigt markieren'}
         </button>
-        <button class="action-btn btn-email" onclick="markAction(${l.id},'email')">✉ Email</button>
-        <button class="action-btn btn-skip" onclick="markAction(${l.id},'kein_interesse')">✗ Skip</button>
+        <!-- Skip: marks as kein_interesse and closes panel -->
+        <button class="btn-big-skip" onclick="markSkip(${l._rowId})" title="Kein Interesse">
+          ✗ Skip
+        </button>
       </div>
-    `;
+    </div>
 
-    document.getElementById('detail-panel').classList.add('open');
-  }
+    <!-- CONTACT section -->
+    <div class="detail-section">
+      <h3>Kontakt</h3>
+      ${emailRow}
+      <div class="detail-row">
+        <span class="dk">Adresse</span>
+        <span class="dv" style="font-size:11px;white-space:normal;text-align:right">${l.adresse || '—'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Branche</span>
+        <span class="dv">${l.branche || '—'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Gefunden am</span>
+        <span class="dv">${l.gefunden_am || '—'}</span>
+      </div>
+    </div>
 
-  function toggleAngerufenDetail(id) {
-    const lead = allLeads.find(l => l.id === id);
-    if (!lead) return;
-    lead.angerufen = !lead.angerufen;
-    lead.status    = lead.angerufen ? 'angerufen' : 'neu';
-    updateStats();
-    renderTable();
-    openDetail(id);  // Panel neu rendern
-    if (lead.angerufen) showToast(`✓ ${lead.name} als angerufen markiert`);
-  }
+    <!-- WEBSITE section: everything needed to pitch a new site -->
+    <div class="detail-section">
+      <h3>Website</h3>
+      ${websiteRow}
+      <div class="detail-row">
+        <span class="dk">Status</span>
+        <span class="dv">${websiteBadge(l)}</span>
+      </div>
+      ${l.website_alter_jahre != null ? `
+      <div class="detail-row">
+        <span class="dk">Alter</span>
+        <span class="dv">${l.website_alter_jahre} Jahre</span>
+      </div>` : ''}
+      ${waybackRow}
+      ${l.ladezeit_ms ? `
+      <div class="detail-row">
+        <span class="dk">Ladezeit</span>
+        <span class="dv">${l.ladezeit_ms} ms${l.ladezeit_ms > 3000 ? ' ⚠' : ''}</span>
+      </div>` : ''}
+      <div class="detail-row">
+        <span class="dk">HTTPS</span>
+        <span class="dv">${l.hat_ssl ? '✓ Ja' : '✗ Nein'}</span>
+      </div>
+      ${mobilRow}
+    </div>
 
-  function closeDetail() {
-    document.getElementById('detail-panel').classList.remove('open');
-    selectedId = null;
-  }
+    <!-- GOOGLE section -->
+    <div class="detail-section">
+      <h3>Google</h3>
+      <div class="detail-row">
+        <span class="dk">Bewertung</span>
+        <span class="dv">★ ${l.google_rating ? l.google_rating.toFixed(1) : '—'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Anzahl Reviews</span>
+        <span class="dv">${l.google_bewertungen || '—'}</span>
+      </div>
+      ${l.google_place_id ? `
+      <div class="detail-row">
+        <span class="dk">Place ID</span>
+        <span class="dv" style="font-size:10px">${l.google_place_id}</span>
+      </div>` : ''}
+    </div>
+  `;
 
-  function markAction(id, action) {
-    const lead = allLeads.find(l => l.id === id);
-    if (lead) lead.status = action;
-    closeDetail();
-    showToast(`✓ Lead als "${action}" markiert`);
-  }
+  panel.classList.add('open');
 
-  // ─── EXPORT CSV (mit angerufen-Status) ───
-  function exportCSV() {
-    const cols = [
-      'score','name','branche','telefon','adresse',
-      'website_status','website_alter_jahre',
-      'google_rating','google_bewertungen',
-      'status','angerufen'           // NEU: angerufen-Spalte
-    ];
-    const header = cols.join(';');
-    const rows = filtered.map(l => cols.map(c => {
-      let v = l[c] ?? '';
-      if (c === 'angerufen') v = l.angerufen ? 'true' : 'false';
-      return `"${String(v).replace(/"/g, '""')}"`;
-    }).join(';'));
-    const csv = [header, ...rows].join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `leads_hannover_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Refresh table so the selected row gets highlighted
+  renderTable();
+}
 
-    const calledCount = filtered.filter(l => l.angerufen).length;
-    showToast(`⬇ CSV exportiert – ${calledCount} Leads als "angerufen" markiert`);
-  }
+// Toggle called state from inside the detail panel
+function toggleCalledDetail(rowId) {
+  const lead = allLeads.find(l => l._rowId === rowId);
+  if (!lead) return;
+  lead.angerufen = !lead.angerufen;
+  lead.status    = lead.angerufen ? 'angerufen' : 'neu';
+  updateStats();
+  renderTable();
+  openDetail(rowId); // Re-render detail panel with new state
+  if (lead.angerufen) showToast(`✓ ${lead.name} als erledigt markiert`);
+}
 
-  // ─── UPLOAD ───
-  function handleFile(file) {
-    if (!file) return;
-    if (!file.name.endsWith('.csv')) { alert('Bitte eine .csv Datei auswählen.'); return; }
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const leads = parseCSV(e.target.result);
-        if (leads.length === 0) { alert('CSV leer oder Format nicht erkannt.'); return; }
-        document.getElementById('upload-overlay').style.display = 'none';
-        document.getElementById('csv-filename').textContent = file.name;
-        loadLeads(leads);
-      } catch(err) {
-        alert('Fehler beim Lesen: ' + err.message);
+// Mark lead as "kein_interesse" and close panel
+function markSkip(rowId) {
+  const lead = allLeads.find(l => l._rowId === rowId);
+  if (lead) { lead.status = 'kein_interesse'; }
+  closeDetail();
+  showToast('Lead übersprungen');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  selectedId = null;
+  renderTable(); // remove row highlight
+}
+
+
+// ─────────────────────────────────────────────
+// CSV EXPORT
+// Exports the currently-filtered leads (so what
+// you see is what you export). Includes ALL
+// original columns from the import, plus the
+// current status/angerufen state so the file
+// can be re-imported with call progress intact.
+// Duplicates are already gone (removed at load).
+// ─────────────────────────────────────────────
+
+function exportCSV() {
+  // All original columns from lead_finder_hannover.py output
+  // plus 'angerufen' for round-trip import support
+  const cols = [
+    'name', 'branche', 'telefon', 'email', 'adresse',
+    'website', 'hat_website', 'website_erreichbar',
+    'website_alter_jahre', 'hat_ssl', 'ladezeit_ms',
+    'ist_mobilfreundlich', 'wayback_datum',
+    'google_place_id', 'google_rating', 'google_bewertungen',
+    'score', 'score_gruende', 'gefunden_am',
+    'status'   // carries 'angerufen' / 'kein_interesse' / 'neu'
+  ];
+
+  const sep = ';'; // always semicolon for Excel compatibility in Germany
+
+  // Header row
+  const header = cols.join(sep);
+
+  // Data rows – re-serialise booleans and arrays back to strings
+  const rows = filtered.map(l =>
+    cols.map(c => {
+      let v = l[c];
+
+      // Re-serialise boolean fields to Python-style True/False
+      if (c === 'hat_ssl' || c === 'hat_website' || c === 'website_erreichbar') {
+        v = l[c] ? 'True' : 'False';
+      } else if (c === 'ist_mobilfreundlich') {
+        v = l[c] == null ? '' : (l[c] ? 'True' : 'False');
       }
-    };
-    reader.readAsText(file, 'UTF-8');
+      // Re-join score reasons array into pipe-delimited string
+      else if (c === 'score_gruende' && Array.isArray(l[c])) {
+        v = l[c].join(' | ');
+      }
+
+      v = v ?? '';
+      // Wrap in double-quotes; escape any internal double-quotes
+      return `"${String(v).replace(/"/g, '""')}"`;
+    }).join(sep)
+  );
+
+  const csv  = [header, ...rows].join('\n');
+  // BOM (byte-order mark) ensures Excel opens it with correct encoding
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `leads_hannover_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  const calledCount = filtered.filter(l => l.angerufen).length;
+  showToast(`⬇ ${filtered.length} Leads exportiert · ${calledCount} als erledigt`);
+}
+
+
+// ─────────────────────────────────────────────
+// FILE UPLOAD HANDLER
+// Reads the file as UTF-8 text, parses it,
+// hides the overlay, and loads the leads.
+// ─────────────────────────────────────────────
+
+function handleFile(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.csv')) {
+    alert('Bitte eine .csv Datei auswählen.');
+    return;
   }
 
-  // ─── LOAD LEADS ───
-  function loadLeads(leads) {
-    allLeads  = leads.sort((a, b) => b.score - a.score);
-    dupeIds   = findDupeIds(allLeads);
-    filtered  = [...allLeads];
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const leads = parseCSV(e.target.result);
+      if (leads.length === 0) {
+        alert('CSV leer oder Format nicht erkannt.');
+        return;
+      }
+      // Hide the upload screen
+      document.getElementById('upload-overlay').style.display = 'none';
+      document.getElementById('csv-badge').textContent = file.name;
+      loadLeads(leads);
+    } catch (err) {
+      alert('Fehler beim Lesen: ' + err.message);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
 
-    const sel = document.getElementById('filter-branche');
-    sel.innerHTML = '<option value="">Alle Branchen</option>';
-    const branchen = [...new Set(allLeads.map(l => l.branche).filter(Boolean))].sort();
-    branchen.forEach(b => {
-      const opt = document.createElement('option');
-      opt.value = b; opt.textContent = b;
-      sel.appendChild(opt);
-    });
 
-    updateStats();
-    renderTable();
+// ─────────────────────────────────────────────
+// INIT
+// Wire up event listeners and show the upload
+// overlay on first render.
+// ─────────────────────────────────────────────
 
-    const calledInFile = allLeads.filter(l => l.angerufen).length;
-    if (calledInFile > 0) showToast(`${calledInFile} bereits angerufene Leads aus CSV übernommen`);
-  }
+function init() {
+  // Filter inputs
+  document.getElementById('search')
+    .addEventListener('input', applyFilters);
+  document.getElementById('filter-branche')
+    .addEventListener('change', applyFilters);
+  document.getElementById('filter-status')
+    .addEventListener('change', applyFilters);
 
-  // ─── INIT ───
-  function init() {
-    document.getElementById('search').addEventListener('input', applyFilters);
-    document.getElementById('filter-branche').addEventListener('change', applyFilters);
-    document.getElementById('filter-status').addEventListener('change', applyFilters);
+  // Drag-and-drop on the upload zone
+  const zone = document.getElementById('drop-zone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    handleFile(e.dataTransfer.files[0]);
+  });
 
-    const zone = document.getElementById('drop-zone');
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
-      e.preventDefault();
-      zone.classList.remove('drag-over');
-      handleFile(e.dataTransfer.files[0]);
-    });
+  // Close detail panel on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && selectedId !== null) closeDetail();
+  });
 
-    document.getElementById('upload-overlay').style.display = 'flex';
-  }
+  document.getElementById('upload-overlay').style.display = 'flex';
+}
 
-  init();
+init();
 </script>
 </body>
 </html>
