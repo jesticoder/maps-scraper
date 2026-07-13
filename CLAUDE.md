@@ -44,4 +44,6 @@ Pure client-side, no server, no build step. User drags/selects a CSV matching th
 
 ## Git workflow
 
-Solo project, one contributor, no feature branches — commit straight to `main`. Push to `origin` (github.com/jesticoder/maps-scraper) right after any commit that represents a complete, working change, without asking for confirmation each time — the user explicitly authorized this standing behavior. To undo a bad push, use `git revert <commit>` (adds a new commit, safe post-push); don't use `git reset --hard` + force-push unless the user explicitly asks for it in the moment.
+Solo project, one contributor, no feature branches — commit straight to `main`. Push to `origin` (github.com/jesticoder/maps-scraper, SSH remote — `git@github.com:jesticoder/maps-scraper.git`) right after any commit that represents a complete, working change, without asking for confirmation each time — the user explicitly authorized this standing behavior. To undo a bad push, use `git revert <commit>` (adds a new commit, safe post-push); don't use `git reset --hard` + force-push unless the user explicitly asks for it in the moment.
+
+`origin` was originally HTTPS with no credential helper configured, which made `git push` fail (`could not read Username`). It's now set to SSH, and a working `id_ed25519` key for this account is already in `~/.ssh` — if push ever fails with an auth error again, check `git remote -v` hasn't drifted back to HTTPS before troubleshooting further.
