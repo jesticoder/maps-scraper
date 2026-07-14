@@ -101,6 +101,11 @@ class Lead:
     seo_meta_beschreibung_vorhanden: bool = False
     seo_noindex: bool = False
     seo_thin_content: bool = False
+    seo_impressum_vorhanden: bool = False
+    seo_datenschutz_vorhanden: bool = False
+    seo_strukturierte_daten_vorhanden: bool = False
+    hat_kontaktmoeglichkeit: bool = False
+    website_baukasten: str = ""
     pagespeed_seo_score: Optional[int] = None
     pagespeed_performance_score: Optional[int] = None
 
@@ -251,6 +256,24 @@ def pruefe_pagespeed(url: str, api_key: str) -> dict:
     return r
 
 
+_BAUKASTEN_MARKER = [
+    ("Jimdo", ("jimdo.com", "jimdocdn.com", "jimdo-server")),
+    ("Wix", ("wixsite.com", "static.wixstatic.com", "parastorage.com", "wix.com website builder")),
+    ("IONOS/1&1 MyWebsite", ("mywebsite-editor", "1und1 mywebsite", "ionos mywebsite", "homepage-baukasten.ionos")),
+    ("STRATO Homepage-Baukasten", ("strato-homepage-baukasten", "sh-homepage-baukasten")),
+]
+
+
+def _erkenne_baukasten(inhalt: str) -> str:
+    """Best-effort Fingerprint über bekannte Asset-Domains/Generator-Strings —
+    erkennt nur verbreitete Baukasten-Systeme, kein Anspruch auf Vollständigkeit."""
+    inhalt_l = inhalt.lower()
+    for name, marker in _BAUKASTEN_MARKER:
+        if any(m in inhalt_l for m in marker):
+            return name
+    return ""
+
+
 # ─────────────────────────────────────────────
 # WEBSITE-ANALYSE  (läuft im Thread-Pool)
 # ─────────────────────────────────────────────
@@ -269,6 +292,11 @@ def analysiere_website(url: str) -> dict:
         "seo_meta_beschreibung_vorhanden": False,
         "seo_noindex": False,
         "seo_thin_content": False,
+        "seo_impressum_vorhanden": False,
+        "seo_datenschutz_vorhanden": False,
+        "seo_strukturierte_daten_vorhanden": False,
+        "hat_kontaktmoeglichkeit": False,
+        "website_baukasten": "",
         "pagespeed_seo_score": None,
         "pagespeed_performance_score": None,
         "email": "",
@@ -277,15 +305,18 @@ def analysiere_website(url: str) -> dict:
     if not url:
         return result
 
-    result["hat_ssl"] = url.startswith("https://")
+    result["hat_ssl"] = url.startswith("https://")  # Fallback falls der Request unten fehlschlägt
     domain = re.sub(r'https?://(www\.)?', '', url).split('/')[0]
 
     # ── HTTP-Check und Wayback gleichzeitig starten ──────────────────────────
     def _http_check():
         r = {
-            "erreichbar": False, "ladezeit_ms": None, "ist_mobilfreundlich": None, "fehler": "",
+            "erreichbar": False, "hat_ssl": None, "ladezeit_ms": None, "ist_mobilfreundlich": None, "fehler": "",
             "seo_titel_vorhanden": False, "seo_meta_beschreibung_vorhanden": False,
-            "seo_noindex": False, "seo_thin_content": False, "email": "",
+            "seo_noindex": False, "seo_thin_content": False,
+            "seo_impressum_vorhanden": False, "seo_datenschutz_vorhanden": False,
+            "seo_strukturierte_daten_vorhanden": False, "hat_kontaktmoeglichkeit": False,
+            "website_baukasten": "", "email": "",
         }
         try:
             start = time.time()
@@ -299,10 +330,16 @@ def analysiere_website(url: str) -> dict:
                     try:
                         inhalt = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(rohdaten).decode("utf-8", errors="ignore")
                     except Exception:
-                        inhalt = ""
+                        # Manche Proxies deklarieren gzip, liefern aber unkomprimierten Text —
+                        # Rohbytes direkt interpretieren statt alle SEO-Signale auf leer zu setzen.
+                        inhalt = rohdaten.decode("utf-8", errors="ignore")
                 else:
                     inhalt = rohdaten.decode("utf-8", errors="ignore")
                 r["erreichbar"] = resp.status == 200
+                # Google Places liefert oft die http://-URL, auch wenn die Seite auf https
+                # weiterleitet — die tatsächliche Ziel-URL nach Redirects zählt, nicht der
+                # ursprünglich abgefragte String.
+                r["hat_ssl"] = resp.geturl().startswith("https://")
                 r["ladezeit_ms"] = int((time.time() - start) * 1000)
                 r["ist_mobilfreundlich"] = "viewport" in inhalt.lower()
 
@@ -336,6 +373,21 @@ def analysiere_website(url: str) -> dict:
                 else:
                     email_match = re.search(r"\b[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}\b", text_only)
                     r["email"] = email_match.group(0) if email_match else ""
+
+                # Pflichtangaben (TMG), strukturierte Daten, Baukasten-Fingerprint und
+                # Kontaktmöglichkeit — alles aus dem bereits geladenen HTML, kein Extra-Request
+                r["seo_impressum_vorhanden"] = "impressum" in inhalt.lower()
+                r["seo_datenschutz_vorhanden"] = "datenschutz" in inhalt.lower()
+                r["seo_strukturierte_daten_vorhanden"] = (
+                    bool(re.search(r"application/ld\+json", inhalt, re.IGNORECASE))
+                    and "schema.org" in inhalt.lower()
+                )
+                r["website_baukasten"] = _erkenne_baukasten(inhalt)
+                r["hat_kontaktmoeglichkeit"] = bool(
+                    re.search(r"<form\b", inhalt, re.IGNORECASE)
+                    or re.search(r'href=["\']tel:', inhalt, re.IGNORECASE)
+                    or mailto
+                )
         except urllib.error.HTTPError as e:
             r["fehler"] = f"HTTP {e.code}"
         except urllib.error.URLError as e:
@@ -373,6 +425,10 @@ def analysiere_website(url: str) -> dict:
         ps_r = f_ps.result()
 
     result.update(http_r)
+    if result["hat_ssl"] is None:
+        # Request komplett fehlgeschlagen (Timeout/DNS/o.ä.) — auf den ursprünglichen
+        # String-Fallback zurückfallen, da wir keine tatsächliche Ziel-URL kennen.
+        result["hat_ssl"] = url.startswith("https://")
     result.update(wb_r)
     result.update(ps_r)
     return result
@@ -426,6 +482,26 @@ def berechne_score(lead: Lead) -> tuple[int, list[str]]:
         if lead.seo_thin_content:
             score += 10
             gruende.append(f"Wenig Textinhalt / Thin Content (<{MIN_WOERTER_CONTENT} Wörter) (+10)")
+
+        if not lead.seo_impressum_vorhanden:
+            score += 15
+            gruende.append("Kein Impressum gefunden — rechtliches Risiko (+15)")
+
+        if not lead.seo_datenschutz_vorhanden:
+            score += 10
+            gruende.append("Keine Datenschutzerklärung gefunden (+10)")
+
+        if not lead.seo_strukturierte_daten_vorhanden:
+            score += 5
+            gruende.append("Keine strukturierten Daten / schema.org (+5)")
+
+        if lead.website_baukasten:
+            score += 10
+            gruende.append(f"Läuft auf Baukasten-System ({lead.website_baukasten}) (+10)")
+
+        if not lead.hat_kontaktmoeglichkeit:
+            score += 15
+            gruende.append("Keine erkennbare Kontaktmöglichkeit (Formular/Tel-Link/E-Mail-Link) (+15)")
 
         if lead.pagespeed_seo_score is not None and lead.pagespeed_seo_score < 70:
             score += 15
@@ -507,6 +583,11 @@ def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
         lead.seo_meta_beschreibung_vorhanden = analyse["seo_meta_beschreibung_vorhanden"]
         lead.seo_noindex = analyse["seo_noindex"]
         lead.seo_thin_content = analyse["seo_thin_content"]
+        lead.seo_impressum_vorhanden = analyse["seo_impressum_vorhanden"]
+        lead.seo_datenschutz_vorhanden = analyse["seo_datenschutz_vorhanden"]
+        lead.seo_strukturierte_daten_vorhanden = analyse["seo_strukturierte_daten_vorhanden"]
+        lead.hat_kontaktmoeglichkeit = analyse["hat_kontaktmoeglichkeit"]
+        lead.website_baukasten = analyse["website_baukasten"]
         lead.pagespeed_seo_score = analyse["pagespeed_seo_score"]
         lead.pagespeed_performance_score = analyse["pagespeed_performance_score"]
         lead.email = analyse["email"]

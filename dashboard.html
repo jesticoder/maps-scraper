@@ -917,6 +917,11 @@ function parseCSV(text) {
     obj.seo_titel_vorhanden             = truthy(obj.seo_titel_vorhanden);
     obj.seo_meta_beschreibung_vorhanden = truthy(obj.seo_meta_beschreibung_vorhanden);
     obj.seo_thin_content                = truthy(obj.seo_thin_content);
+    obj.seo_impressum_vorhanden             = truthy(obj.seo_impressum_vorhanden);
+    obj.seo_datenschutz_vorhanden           = truthy(obj.seo_datenschutz_vorhanden);
+    obj.seo_strukturierte_daten_vorhanden   = truthy(obj.seo_strukturierte_daten_vorhanden);
+    obj.hat_kontaktmoeglichkeit             = truthy(obj.hat_kontaktmoeglichkeit);
+    obj.website_baukasten                   = obj.website_baukasten || '';
 
     // ── Derived website status (used for badge + filter) ──
     // Falls back gracefully if hat_website/website_erreichbar are missing.
@@ -1445,6 +1450,27 @@ function openDetail(rowId) {
         <span class="dk">Thin Content</span>
         <span class="dv">${l.seo_thin_content ? '⚠ Wenig Text' : '✓ OK'}</span>
       </div>
+      <div class="detail-row">
+        <span class="dk">Impressum</span>
+        <span class="dv">${l.seo_impressum_vorhanden ? '✓ Vorhanden' : '✗ Fehlt'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Datenschutzerklärung</span>
+        <span class="dv">${l.seo_datenschutz_vorhanden ? '✓ Vorhanden' : '✗ Fehlt'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Strukturierte Daten</span>
+        <span class="dv">${l.seo_strukturierte_daten_vorhanden ? '✓ Vorhanden' : '✗ Fehlt'}</span>
+      </div>
+      <div class="detail-row">
+        <span class="dk">Kontaktmöglichkeit</span>
+        <span class="dv">${l.hat_kontaktmoeglichkeit ? '✓ Vorhanden' : '✗ Fehlt (kein Formular/Tel/Mail-Link)'}</span>
+      </div>
+      ${l.website_baukasten ? `
+      <div class="detail-row">
+        <span class="dk">Baukasten-System</span>
+        <span class="dv">${l.website_baukasten}</span>
+      </div>` : ''}
       ${l.pagespeed_seo_score != null ? `
       <div class="detail-row">
         <span class="dk">PageSpeed SEO</span>
@@ -1539,6 +1565,9 @@ function exportCSV() {
     'ist_mobilfreundlich', 'wayback_datum',
     'seo_titel_vorhanden', 'seo_meta_beschreibung_vorhanden',
     'seo_noindex', 'seo_thin_content',
+    'seo_impressum_vorhanden', 'seo_datenschutz_vorhanden',
+    'seo_strukturierte_daten_vorhanden', 'hat_kontaktmoeglichkeit',
+    'website_baukasten',
     'pagespeed_seo_score', 'pagespeed_performance_score',
     'google_place_id', 'google_rating', 'google_bewertungen',
     'gbp_fotos_anzahl', 'gbp_kategorien',
@@ -1559,7 +1588,9 @@ function exportCSV() {
       // Re-serialise boolean fields to Python-style True/False
       if (c === 'hat_ssl' || c === 'hat_website' || c === 'website_erreichbar'
           || c === 'seo_titel_vorhanden' || c === 'seo_meta_beschreibung_vorhanden'
-          || c === 'seo_noindex' || c === 'seo_thin_content') {
+          || c === 'seo_noindex' || c === 'seo_thin_content'
+          || c === 'seo_impressum_vorhanden' || c === 'seo_datenschutz_vorhanden'
+          || c === 'seo_strukturierte_daten_vorhanden' || c === 'hat_kontaktmoeglichkeit') {
         v = l[c] ? 'True' : 'False';
       } else if (c === 'ist_mobilfreundlich') {
         v = l[c] == null ? '' : (l[c] ? 'True' : 'False');
