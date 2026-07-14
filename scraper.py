@@ -16,6 +16,7 @@ import urllib.error
 import re
 import csv
 import os
+import zlib
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from typing import Optional
@@ -290,7 +291,17 @@ def analysiere_website(url: str) -> dict:
             start = time.time()
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=8) as resp:
-                inhalt = resp.read(50000).decode("utf-8", errors="ignore")
+                rohdaten = resp.read(50000)
+                # Manche Server (z.B. hinter next-boost/aggressive Reverse-Proxies) schicken
+                # gzip auch ohne passendes Accept-Encoding — decompressobj statt gzip.decompress,
+                # da der 50000-Byte-Schnitt den Stream vor dem Ende abschneiden kann.
+                if resp.info().get("Content-Encoding", "").lower() == "gzip":
+                    try:
+                        inhalt = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(rohdaten).decode("utf-8", errors="ignore")
+                    except Exception:
+                        inhalt = ""
+                else:
+                    inhalt = rohdaten.decode("utf-8", errors="ignore")
                 r["erreichbar"] = resp.status == 200
                 r["ladezeit_ms"] = int((time.time() - start) * 1000)
                 r["ist_mobilfreundlich"] = "viewport" in inhalt.lower()
