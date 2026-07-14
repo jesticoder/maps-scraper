@@ -74,6 +74,12 @@ PRUEFE_PAGESPEED = True
 # Unterhalb dieser Wortzahl im sichtbaren Text gilt eine Seite als "Thin Content"
 MIN_WOERTER_CONTENT = 200
 
+# Wie viele Bytes vom HTML pro Seite gelesen werden. Muss groß genug sein, um Footer-
+# Inhalte (Impressum/Datenschutz-Links, JSON-LD) zu erreichen — nicht nur den <head>.
+# Bei Themes mit voluminösem Inline-JS im <head> (z.B. Avada/WordPress-Baukasten mit
+# base64-Blobs) landet der Footer sonst außerhalb des gelesenen Bereichs.
+MAX_HTML_BYTES = 200_000
+
 
 # ─────────────────────────────────────────────
 # DATENMODELL
@@ -322,10 +328,10 @@ def analysiere_website(url: str) -> dict:
             start = time.time()
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=8) as resp:
-                rohdaten = resp.read(50000)
+                rohdaten = resp.read(MAX_HTML_BYTES)
                 # Manche Server (z.B. hinter next-boost/aggressive Reverse-Proxies) schicken
                 # gzip auch ohne passendes Accept-Encoding — decompressobj statt gzip.decompress,
-                # da der 50000-Byte-Schnitt den Stream vor dem Ende abschneiden kann.
+                # da der Byte-Schnitt den Stream vor dem Ende abschneiden kann.
                 if resp.info().get("Content-Encoding", "").lower() == "gzip":
                     try:
                         inhalt = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(rohdaten).decode("utf-8", errors="ignore")
@@ -448,10 +454,19 @@ def berechne_score(lead: Lead) -> tuple[int, list[str]]:
         score += 35
         gruende.append("Website nicht erreichbar (+35)")
     else:
-        if lead.website_alter_jahre and lead.website_alter_jahre >= 8:
+        # Domain-Alter (Wayback) allein sagt nichts über den aktuellen Zustand der Seite
+        # aus — eine alte Domain kann längst neu gebaut worden sein. Nur zusammen mit
+        # einem echten Veraltet-Symptom werten, sonst verzerrt es den Score unnötig.
+        website_wirkt_veraltet = (
+            lead.ist_mobilfreundlich == False
+            or not lead.hat_ssl
+            or not lead.seo_titel_vorhanden
+        )
+
+        if lead.website_alter_jahre and lead.website_alter_jahre >= 8 and website_wirkt_veraltet:
             score += 25
-            gruende.append(f"Website sehr alt ({lead.website_alter_jahre} Jahre) (+25)")
-        elif lead.website_alter_jahre and lead.website_alter_jahre >= 5:
+            gruende.append(f"Website sehr alt ({lead.website_alter_jahre} Jahre) und wirkt veraltet (+25)")
+        elif lead.website_alter_jahre and lead.website_alter_jahre >= 5 and website_wirkt_veraltet:
             score += 15
             gruende.append(f"Website veraltet ({lead.website_alter_jahre} Jahre) (+15)")
 
@@ -475,9 +490,13 @@ def berechne_score(lead: Lead) -> tuple[int, list[str]]:
             score += 20
             gruende.append("Seite per noindex von Google ausgeschlossen! (+20)")
 
-        if not lead.seo_titel_vorhanden or not lead.seo_meta_beschreibung_vorhanden:
+        if not lead.seo_titel_vorhanden:
             score += 10
-            gruende.append("Kein Title-Tag oder keine Meta-Description (+10)")
+            gruende.append("Kein Title-Tag (+10)")
+
+        if not lead.seo_meta_beschreibung_vorhanden:
+            score += 5
+            gruende.append("Keine Meta-Description (+5)")
 
         if lead.seo_thin_content:
             score += 10
@@ -539,7 +558,7 @@ def berechne_score(lead: Lead) -> tuple[int, list[str]]:
 # ─────────────────────────────────────────────
 # EINZELNEN PLACE → LEAD VERARBEITEN (Thread-safe)
 # ─────────────────────────────────────────────
-def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
+def verarbeite_place(place: dict, branche: str, api_key: str, bisheriger_status: dict) -> Lead:
     """Wird pro Betrieb in einem Worker-Thread aufgerufen."""
     name = place.get("name", "Unbekannt")
     place_id = place.get("place_id", "")
@@ -594,6 +613,11 @@ def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
     else:
         lead.hat_website = False
 
+    # Anruf-Fortschritt über Rescans hinweg erhalten — google_place_id ist über
+    # Google-Läufe hinweg stabil, anders als der Zeilenindex in der CSV.
+    if lead.google_place_id in bisheriger_status:
+        lead.status = bisheriger_status[lead.google_place_id]
+
     lead.score, lead.score_gruende = berechne_score(lead)
     return lead
 
@@ -601,7 +625,7 @@ def verarbeite_place(place: dict, branche: str, api_key: str) -> Lead:
 # ─────────────────────────────────────────────
 # HAUPT-PIPELINE
 # ─────────────────────────────────────────────
-def verarbeite_branche(branche: str, stadt: str, api_key: str) -> list[Lead]:
+def verarbeite_branche(branche: str, stadt: str, api_key: str, bisheriger_status: dict) -> list[Lead]:
     """Führt die komplette Pipeline für eine Branche aus — Betriebe parallel."""
     print(f"\n{'='*50}")
     print(f"  Branche: {branche} in {stadt}")
@@ -616,7 +640,7 @@ def verarbeite_branche(branche: str, stadt: str, api_key: str) -> list[Lead]:
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futures = {
-            pool.submit(verarbeite_place, place, branche, api_key): place.get("name", "?")
+            pool.submit(verarbeite_place, place, branche, api_key, bisheriger_status): place.get("name", "?")
             for place in rohdaten
         }
 
@@ -653,6 +677,26 @@ def speichere_leads(alle_leads: list[Lead]):
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump([asdict(l) for l in alle_leads], f, ensure_ascii=False, indent=2)
     print(f"✅ JSON gespeichert: {OUTPUT_JSON}")
+
+
+def lade_vorherigen_status(pfad: str) -> dict:
+    """Liest 'status' (z.B. 'angerufen') aus einer vorhandenen Output-CSV, damit ein
+    Rescan (neuer Scraper-Lauf oder geänderte Branchen) den Anruf-Fortschritt nicht
+    überschreibt. Keyed nach google_place_id, da dieser über Läufe hinweg stabil ist —
+    anders als der Zeilenindex oder die Reihenfolge in der CSV."""
+    status_map: dict = {}
+    if not os.path.exists(pfad):
+        return status_map
+    try:
+        with open(pfad, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                place_id = row.get("google_place_id", "")
+                status = row.get("status", "")
+                if place_id and status and status != "neu":
+                    status_map[place_id] = status
+    except Exception as e:
+        print(f"  ⚠ Konnte vorherigen Status nicht laden ({pfad}): {e}")
+    return status_map
 
 
 def drucke_zusammenfassung(alle_leads: list[Lead]):
@@ -694,11 +738,15 @@ def main():
         print("   Setze die Umgebungsvariable GOOGLE_PLACES_API_KEY")
         print("   Demo-Modus aktiv — realistische Testdaten werden verwendet.\n")
 
+    bisheriger_status = lade_vorherigen_status(OUTPUT_FILE)
+    if bisheriger_status:
+        print(f"  ℹ  {len(bisheriger_status)} Anruf-Status aus vorhandener {OUTPUT_FILE} übernommen\n")
+
     alle_leads: list[Lead] = []
     try:
         for branche in BRANCHEN:
             t0 = time.time()
-            leads = verarbeite_branche(branche, ZIELSTADT, api_key)
+            leads = verarbeite_branche(branche, ZIELSTADT, api_key, bisheriger_status)
             alle_leads.extend(leads)
             speichere_leads(alle_leads)
             elapsed = time.time() - t0
