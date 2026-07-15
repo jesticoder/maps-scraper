@@ -76,9 +76,12 @@ MIN_WOERTER_CONTENT = 200
 
 # Wie viele Bytes vom HTML pro Seite gelesen werden. Muss groß genug sein, um Footer-
 # Inhalte (Impressum/Datenschutz-Links, JSON-LD) zu erreichen — nicht nur den <head>.
-# Bei Themes mit voluminösem Inline-JS im <head> (z.B. Avada/WordPress-Baukasten mit
-# base64-Blobs) landet der Footer sonst außerhalb des gelesenen Bereichs.
-MAX_HTML_BYTES = 200_000
+# Bei Themes/Baukasten-Systemen mit voluminösem Inline-JS/JSON vor dem eigentlichen
+# Content (z.B. Avada/WordPress mit base64-Blobs, oder Wix' Thunderbolt-Renderer, der
+# oft 200KB+ Preload-Daten VOR dem <title>-Tag ausliefert) landen Title, Meta-Description
+# und Footer sonst außerhalb des gelesenen Bereichs — beobachtet bei einer 1MB+ Wix-Seite,
+# wo Impressum/Datenschutz erst bei Byte ~660.000 auftauchten.
+MAX_HTML_BYTES = 3_000_000
 
 
 # ─────────────────────────────────────────────
